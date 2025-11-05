@@ -9,45 +9,19 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  int _selectedPaymentMethod = 0; // 0: Card, 1: Cash, 2: Mobile Wallet
-  final TextEditingController _cardNumberController = TextEditingController();
-  final TextEditingController _cardNameController = TextEditingController();
-  final TextEditingController _expiryController = TextEditingController();
-  final TextEditingController _cvvController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController(
-    text: '500',
-  );
+  // 0: Cash, 1: Credit/Debit Card, 2: Wallet Balance
+  int _selectedPaymentMethod = 0;
+  final TextEditingController _commentController = TextEditingController();
+  int _driverRating = 0; // 0..5
+  final int _totalFare = 750; // PKR
 
   @override
   void dispose() {
-    _cardNumberController.dispose();
-    _cardNameController.dispose();
-    _expiryController.dispose();
-    _cvvController.dispose();
-    _amountController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
   void _processPayment() {
-    if (_selectedPaymentMethod == 0) {
-      // Card payment validation
-      if (_cardNumberController.text.isEmpty ||
-          _cardNameController.text.isEmpty ||
-          _expiryController.text.isEmpty ||
-          _cvvController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Please fill all card details',
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-    }
-
     // Show success dialog
     showDialog(
       context: context,
@@ -57,11 +31,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
           'Payment Successful!',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
-            color: Colors.green,
+            color: Color(0xFFFFC107),
           ),
         ),
         content: Text(
-          'Your payment of PKR ${_amountController.text} has been processed successfully.',
+          'Your payment of PKR $_totalFare has been processed successfully.\nRating: $_driverRating/5',
           style: GoogleFonts.inter(),
         ),
         actions: [
@@ -92,9 +66,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final double horizontalPadding = (screenWidth * 0.06).clamp(20.0, 30.0);
     final double fontSizeTitle = (screenWidth * 0.055).clamp(20.0, 24.0);
     final double fontSizeBody = (screenWidth * 0.038).clamp(14.0, 16.0);
-    final double fontSizeLabel = (screenWidth * 0.036).clamp(13.0, 15.0);
     final double fontSizeButton = (screenWidth * 0.042).clamp(16.0, 18.0);
-    final double inputHeight = (screenHeight * 0.065).clamp(50.0, 60.0);
     final double buttonHeight = (screenHeight * 0.065).clamp(50.0, 60.0);
     final double cardRadius = (screenWidth * 0.035).clamp(12.0, 16.0);
 
@@ -129,18 +101,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     children: [
                       SizedBox(height: screenHeight * 0.025),
 
-                      // Payment Amount Card
+                      // Ride Summary Card
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(horizontalPadding * 0.8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFC153b),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(cardRadius),
+                          border: Border.all(color: Colors.grey[300]!),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
@@ -148,38 +121,71 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Total Amount',
+                              'Ride Summary',
                               style: GoogleFonts.inter(
                                 fontSize: fontSizeBody,
-                                color: Colors.white70,
-                                fontWeight: FontWeight.w500,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            SizedBox(height: screenHeight * 0.01),
+                            SizedBox(height: screenHeight * 0.012),
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'PKR',
+                                  'Total Fare',
                                   style: GoogleFonts.inter(
-                                    fontSize: fontSizeTitle * 0.8,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFFFC153b),
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _amountController,
-                                    style: GoogleFonts.inter(
-                                      fontSize: fontSizeTitle * 1.2,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                    ),
+                                Text(
+                                  'Rs. ${_totalFare.toStringAsFixed(0)}',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFFFC153b),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: fontSizeTitle,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: screenHeight * 0.01),
+                            Divider(color: Colors.grey[300]),
+                            SizedBox(height: screenHeight * 0.006),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Base Fare',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.black54,
+                                    fontSize: fontSizeBody,
+                                  ),
+                                ),
+                                Text(
+                                  'Rs. 650.00',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.black87,
+                                    fontSize: fontSizeBody,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: screenHeight * 0.006),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Taxes & Fees',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.black54,
+                                    fontSize: fontSizeBody,
+                                  ),
+                                ),
+                                Text(
+                                  'Rs. 100.00',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.black87,
+                                    fontSize: fontSizeBody,
                                   ),
                                 ),
                               ],
@@ -187,260 +193,148 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ],
                         ),
                       ),
-                      SizedBox(height: screenHeight * 0.03),
+                      SizedBox(height: screenHeight * 0.02),
 
-                      // Payment Methods Section
-                      Text(
-                        'Select Payment Method',
-                        style: GoogleFonts.inter(
-                          fontSize: fontSizeTitle,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                      // Payment Methods Card
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(horizontalPadding * 0.6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(cardRadius),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Payment Methods',
+                              style: GoogleFonts.inter(
+                                fontSize: fontSizeBody,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: screenHeight * 0.01),
+                            _buildRadioMethod(
+                              icon: Icons.payments_outlined,
+                              title: 'Cash',
+                              value: 0,
+                              screenWidth: screenWidth,
+                              fontSizeBody: fontSizeBody,
+                            ),
+                            _buildRadioMethod(
+                              icon: Icons.credit_card,
+                              title: 'Credit/Debit Card',
+                              value: 1,
+                              screenWidth: screenWidth,
+                              fontSizeBody: fontSizeBody,
+                            ),
+                            _buildRadioMethod(
+                              icon: Icons.account_balance_wallet_outlined,
+                              title: 'Wallet Balance',
+                              value: 2,
+                              screenWidth: screenWidth,
+                              fontSizeBody: fontSizeBody,
+                            ),
+                          ],
                         ),
                       ),
                       SizedBox(height: screenHeight * 0.02),
 
-                      // Card Payment Option
-                      _buildPaymentMethodCard(
-                        context,
-                        icon: Icons.credit_card,
-                        title: 'Credit/Debit Card',
-                        subtitle: 'Pay with Visa, Mastercard, etc.',
-                        index: 0,
-                        screenWidth: screenWidth,
-                        screenHeight: screenHeight,
-                        fontSizeTitle: fontSizeTitle,
-                        fontSizeBody: fontSizeBody,
-                        cardRadius: cardRadius,
-                      ),
-                      SizedBox(height: screenHeight * 0.015),
-
-                      // Cash Payment Option
-                      _buildPaymentMethodCard(
-                        context,
-                        icon: Icons.money,
-                        title: 'Cash Payment',
-                        subtitle: 'Pay cash on delivery',
-                        index: 1,
-                        screenWidth: screenWidth,
-                        screenHeight: screenHeight,
-                        fontSizeTitle: fontSizeTitle,
-                        fontSizeBody: fontSizeBody,
-                        cardRadius: cardRadius,
-                      ),
-                      SizedBox(height: screenHeight * 0.015),
-
-                      // Mobile Wallet Option
-                      _buildPaymentMethodCard(
-                        context,
-                        icon: Icons.account_balance_wallet,
-                        title: 'Mobile Wallet',
-                        subtitle: 'JazzCash, EasyPaisa, etc.',
-                        index: 2,
-                        screenWidth: screenWidth,
-                        screenHeight: screenHeight,
-                        fontSizeTitle: fontSizeTitle,
-                        fontSizeBody: fontSizeBody,
-                        cardRadius: cardRadius,
-                      ),
-                      SizedBox(height: screenHeight * 0.03),
-
-                      // Card Details Form (only shown when card is selected)
-                      if (_selectedPaymentMethod == 0) ...[
-                        Text(
-                          'Card Details',
-                          style: GoogleFonts.inter(
-                            fontSize: fontSizeTitle,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
+                      // Rate Your Driver
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(horizontalPadding * 0.6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(cardRadius),
+                          border: Border.all(color: Colors.grey[300]!),
                         ),
-                        SizedBox(height: screenHeight * 0.02),
-
-                        // Card Number
-                        Text(
-                          'Card Number',
-                          style: GoogleFonts.inter(
-                            fontSize: fontSizeLabel,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: screenHeight * 0.008),
-                        SizedBox(
-                          height: inputHeight,
-                          child: TextField(
-                            controller: _cardNumberController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: '1234 5678 9012 3456',
-                              hintStyle: GoogleFonts.inter(
-                                fontSize: fontSizeBody * 0.9,
-                                color: Colors.grey[400],
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.credit_card,
-                                color: Colors.grey,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFFC153b),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            style: GoogleFonts.inter(fontSize: fontSizeBody),
-                          ),
-                        ),
-                        SizedBox(height: screenHeight * 0.02),
-
-                        // Cardholder Name
-                        Text(
-                          'Cardholder Name',
-                          style: GoogleFonts.inter(
-                            fontSize: fontSizeLabel,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: screenHeight * 0.008),
-                        SizedBox(
-                          height: inputHeight,
-                          child: TextField(
-                            controller: _cardNameController,
-                            decoration: InputDecoration(
-                              hintText: 'John Doe',
-                              hintStyle: GoogleFonts.inter(
-                                fontSize: fontSizeBody * 0.9,
-                                color: Colors.grey[400],
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.person,
-                                color: Colors.grey,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFFC153b),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            style: GoogleFonts.inter(fontSize: fontSizeBody),
-                          ),
-                        ),
-                        SizedBox(height: screenHeight * 0.02),
-
-                        // Expiry and CVV Row
-                        Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Expiry',
-                                    style: GoogleFonts.inter(
-                                      fontSize: fontSizeLabel,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  SizedBox(height: screenHeight * 0.008),
-                                  SizedBox(
-                                    height: inputHeight,
-                                    child: TextField(
-                                      controller: _expiryController,
-                                      keyboardType: TextInputType.number,
-                                      decoration: InputDecoration(
-                                        hintText: 'MM/YY',
-                                        hintStyle: GoogleFonts.inter(
-                                          fontSize: fontSizeBody * 0.9,
-                                          color: Colors.grey[400],
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFFC153b),
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                      style: GoogleFonts.inter(
-                                        fontSize: fontSizeBody,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              'Rate Your Driver',
+                              style: GoogleFonts.inter(
+                                fontSize: fontSizeBody,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            SizedBox(width: screenWidth * 0.03),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'CVV',
-                                    style: GoogleFonts.inter(
-                                      fontSize: fontSizeLabel,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
+                            SizedBox(height: screenHeight * 0.015),
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 20,
+                                  backgroundImage: AssetImage(
+                                    'assets/images/placeholder_user.png',
                                   ),
-                                  SizedBox(height: screenHeight * 0.008),
-                                  SizedBox(
-                                    height: inputHeight,
-                                    child: TextField(
-                                      controller: _cvvController,
-                                      keyboardType: TextInputType.number,
-                                      obscureText: true,
-                                      decoration: InputDecoration(
-                                        hintText: '123',
-                                        hintStyle: GoogleFonts.inter(
-                                          fontSize: fontSizeBody * 0.9,
-                                          color: Colors.grey[400],
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFFC153b),
-                                            width: 2,
-                                          ),
+                                ),
+                                SizedBox(width: screenWidth * 0.03),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Ayesha Khan',
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      style: GoogleFonts.inter(
-                                        fontSize: fontSizeBody,
+                                      SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 6,
+                                        children: List.generate(5, (index) {
+                                          final isFilled =
+                                              index < _driverRating;
+                                          return GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                _driverRating = index + 1;
+                                              });
+                                            },
+                                            child: Icon(
+                                              Icons.star,
+                                              size: 22,
+                                              color: isFilled
+                                                  ? const Color(0xFFFFC107)
+                                                  : Colors.grey[300],
+                                            ),
+                                          );
+                                        }),
                                       ),
-                                    ),
+                                    ],
                                   ),
-                                ],
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: screenHeight * 0.015),
+                            TextField(
+                              controller: _commentController,
+                              minLines: 2,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Add a comment (optional)',
+                                hintStyle: GoogleFonts.inter(
+                                  color: Colors.grey[500],
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFFC153b),
+                                    width: 2,
+                                  ),
+                                ),
                               ),
+                              style: GoogleFonts.inter(fontSize: fontSizeBody),
                             ),
                           ],
                         ),
-                        SizedBox(height: screenHeight * 0.03),
-                      ],
+                      ),
+                      SizedBox(height: screenHeight * 0.02),
                     ],
                   ),
                 ),
@@ -467,11 +361,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               child: SizedBox(
                 height: buttonHeight,
-                child: ElevatedButton.icon(
+                child: ElevatedButton(
                   onPressed: _processPayment,
-                  icon: const Icon(Icons.payment, color: Colors.white),
-                  label: Text(
-                    'Pay Now',
+                  child: Text(
+                    'Confirm Payment',
                     style: GoogleFonts.inter(
                       fontSize: fontSizeButton,
                       fontWeight: FontWeight.w600,
@@ -493,88 +386,41 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  Widget _buildPaymentMethodCard(
-    BuildContext context, {
+  Widget _buildRadioMethod({
     required IconData icon,
     required String title,
-    required String subtitle,
-    required int index,
+    required int value,
     required double screenWidth,
-    required double screenHeight,
-    required double fontSizeTitle,
     required double fontSizeBody,
-    required double cardRadius,
   }) {
-    final bool isSelected = _selectedPaymentMethod == index;
-    return GestureDetector(
+    return InkWell(
       onTap: () {
         setState(() {
-          _selectedPaymentMethod = index;
+          _selectedPaymentMethod = value;
         });
       },
-      child: Container(
-        padding: EdgeInsets.all(screenWidth * 0.04),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(cardRadius),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFFC153b) : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.02),
         child: Row(
           children: [
-            Container(
-              padding: EdgeInsets.all(screenWidth * 0.03),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFFFC153b).withOpacity(0.1)
-                    : Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: isSelected ? const Color(0xFFFC153b) : Colors.grey[600],
-                size: 28,
-              ),
-            ),
+            Icon(icon, color: Colors.redAccent),
             SizedBox(width: screenWidth * 0.04),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: fontSizeTitle * 0.9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  SizedBox(height: screenHeight * 0.005),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: fontSizeBody * 0.85,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
+              child: Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: fontSizeBody,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             Icon(
-              isSelected
+              _selectedPaymentMethod == value
                   ? Icons.radio_button_checked
                   : Icons.radio_button_unchecked,
-              color: isSelected ? const Color(0xFFFC153b) : Colors.grey[400],
+              color: _selectedPaymentMethod == value
+                  ? const Color(0xFFFC153b)
+                  : Colors.grey[400],
             ),
           ],
         ),
