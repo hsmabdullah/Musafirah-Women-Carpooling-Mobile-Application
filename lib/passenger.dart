@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/payment_screen.dart';
 import 'map_screen.dart';
 import 'package:country_code_picker/country_code_picker.dart';
+import 'cnic_verification_screen.dart';
 
 class PassengerScreen extends StatefulWidget {
   const PassengerScreen({super.key});
@@ -26,12 +27,10 @@ class _PassengerScreenState extends State<PassengerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size using MediaQuery
     final Size screenSize = MediaQuery.of(context).size;
     final double screenWidth = screenSize.width;
     final double screenHeight = screenSize.height;
 
-    // Calculate responsive values
     final double horizontalPadding = (screenWidth * 0.06).clamp(20.0, 30.0);
     final double fontSizeTitle = (screenWidth * 0.065).clamp(24.0, 32.0);
     final double fontSizeBody = (screenWidth * 0.040).clamp(14.0, 18.0);
@@ -48,9 +47,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Sign Up - Passenger',
@@ -67,7 +64,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Scrollable content
               Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
@@ -78,8 +74,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(height: screenHeight * 0.04),
-
-                        // Title
                         Text(
                           'Verify Your Account',
                           style: GoogleFonts.inter(
@@ -89,8 +83,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                           ),
                         ),
                         SizedBox(height: screenHeight * 0.02),
-
-                        // Instructional Text
                         Text(
                           'Enter your phone number to receive a one-time password (OTP) and securely sign up. A 4-digit code will be sent to your number.',
                           style: GoogleFonts.inter(
@@ -101,7 +93,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                         ),
                         SizedBox(height: screenHeight * 0.04),
 
-                        // Phone Number Label
+                        // 📱 Phone Number Label
                         Text(
                           'Phone Number',
                           style: GoogleFonts.inter(
@@ -112,13 +104,13 @@ class _PassengerScreenState extends State<PassengerScreen> {
                         ),
                         SizedBox(height: screenHeight * 0.01),
 
-                        // Phone Number Input Field with Country Code Picker
+                        // 📞 Flag + Phone Number Row
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            // Country Code Picker with Flag (Equal width)
+                            // 🇵🇰 Flag Section - 30%
                             Expanded(
-                              flex: 1,
+                              flex: 3,
                               child: Container(
                                 height: inputHeight,
                                 decoration: BoxDecoration(
@@ -149,7 +141,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                   padding: EdgeInsets.symmetric(
                                     horizontal: screenWidth * 0.02,
                                   ),
-                                  flagDecoration: const BoxDecoration(),
                                   textStyle: GoogleFonts.inter(
                                     fontSize: fontSizeBody * 0.9,
                                     color: Colors.black87,
@@ -165,110 +156,83 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                 ),
                               ),
                             ),
-                            // Phone Number Input (Equal width)
+
+                            // ☎️ Phone Number Field - 70%
                             Expanded(
-                              flex: 1,
-                              child: SizedBox(
-                                height: inputHeight,
-                                child: TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  maxLength: 15, // Maximum phone number length
-                                  textAlign: TextAlign.center,
-                                  onChanged: (value) {
-                                    // Remove leading 0 if country code is +92
-                                    if (_selectedCountryCode?.dialCode ==
-                                            '+92' &&
-                                        value.isNotEmpty &&
-                                        value.startsWith('0') &&
-                                        value.length > 1) {
-                                      final newValue = value.substring(1);
-                                      _phoneController.value = TextEditingValue(
-                                        text: newValue,
-                                        selection: TextSelection.collapsed(
-                                          offset: newValue.length,
+                              flex: 7,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    height: inputHeight,
+                                    child: TextFormField(
+                                      controller: _phoneController,
+                                      keyboardType: TextInputType.phone,
+                                      maxLength: 15,
+                                      textAlign: TextAlign.center,
+                                      decoration: InputDecoration(
+                                        hintText: 'e.g., 300 1234567',
+                                        hintStyle: GoogleFonts.inter(
+                                          fontSize: fontSizeBody,
+                                          color: Colors.grey[600],
                                         ),
-                                      );
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    hintText: 'e.g., 300 1234567',
-                                    hintStyle: GoogleFonts.inter(
-                                      fontSize: fontSizeBody,
-                                      color: Colors.grey[600],
-                                    ),
-                                    counterText: '',
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: const BorderRadius.only(
-                                        topRight: Radius.circular(8),
-                                        bottomRight: Radius.circular(8),
+                                        errorStyle: GoogleFonts.inter(
+                                          color: Colors.red,
+                                          fontSize: 13,
+                                          height: 1.2,
+                                        ),
+                                        counterText: '',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: const BorderRadius.only(
+                                            topRight: Radius.circular(8),
+                                            bottomRight: Radius.circular(8),
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey[300]!,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        focusedBorder: const OutlineInputBorder(
+                                          borderRadius: BorderRadius.only(
+                                            topRight: Radius.circular(8),
+                                            bottomRight: Radius.circular(8),
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Color(0xFFFC153b),
+                                            width: 2,
+                                          ),
+                                        ),
                                       ),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey[300]!,
-                                        width: 1.5,
+                                      style: GoogleFonts.inter(
+                                        fontSize: fontSizeBody,
+                                        color: Colors.black87,
                                       ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: const BorderRadius.only(
-                                        topRight: Radius.circular(8),
-                                        bottomRight: Radius.circular(8),
-                                      ),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey[300]!,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: const BorderRadius.only(
-                                        topRight: Radius.circular(8),
-                                        bottomRight: Radius.circular(8),
-                                      ),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFFC153b),
-                                        width: 2,
-                                      ),
-                                    ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: screenWidth * 0.02,
-                                      vertical: screenHeight * 0.02,
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your phone number';
+                                        }
+                                        if (value.length < 7) {
+                                          return 'Phone number is too short';
+                                        }
+                                        if (!RegExp(
+                                          r'^[0-9]+$',
+                                        ).hasMatch(value)) {
+                                          return 'Phone number should contain only digits';
+                                        }
+                                        return null;
+                                      },
                                     ),
                                   ),
-                                  style: GoogleFonts.inter(
-                                    fontSize: fontSizeBody,
-                                    color: Colors.black87,
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your phone number';
-                                    }
-                                    String phoneNumber = value;
-                                    // Remove leading 0 for +92 before validation
-                                    if (_selectedCountryCode?.dialCode ==
-                                            '+92' &&
-                                        phoneNumber.startsWith('0')) {
-                                      phoneNumber = phoneNumber.substring(1);
-                                    }
-                                    if (phoneNumber.length < 7) {
-                                      return 'Phone number is too short';
-                                    }
-                                    // Check if it's all digits (excluding + which is handled)
-                                    if (!RegExp(
-                                      r'^[0-9]+$',
-                                    ).hasMatch(phoneNumber)) {
-                                      return 'Phone number should contain only digits';
-                                    }
-                                    return null;
-                                  },
-                                ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                         SizedBox(height: screenHeight * 0.03),
 
-                        // OTP Label
+                        // 🔢 OTP Section
                         Text(
                           'One-Time Password (OTP)',
                           style: GoogleFonts.inter(
@@ -278,8 +242,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                           ),
                         ),
                         SizedBox(height: screenHeight * 0.01),
-
-                        // OTP Input Field with Resend Button
                         Row(
                           children: [
                             Expanded(
@@ -306,13 +268,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                         width: 1.5,
                                       ),
                                     ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey[300]!,
-                                        width: 1.5,
-                                      ),
-                                    ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
                                       borderSide: const BorderSide(
@@ -320,10 +275,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                         width: 2,
                                       ),
                                     ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: screenWidth * 0.04,
-                                      vertical: screenHeight * 0.02,
-                                    ),
+                                    errorStyle: const TextStyle(height: 0),
                                   ),
                                   style: GoogleFonts.inter(
                                     fontSize: fontSizeBody,
@@ -346,7 +298,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                               height: inputHeight,
                               child: OutlinedButton(
                                 onPressed: () {
-                                  // Resend OTP logic
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -368,10 +319,6 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: screenWidth * 0.04,
-                                    vertical: screenHeight * 0.015,
-                                  ),
                                 ),
                                 child: Text(
                                   'Resend',
@@ -392,7 +339,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                 ),
               ),
 
-              // Verify OTP Button at bottom
+              // ✅ Verify OTP Button
               Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: horizontalPadding,
@@ -404,12 +351,11 @@ class _PassengerScreenState extends State<PassengerScreen> {
                   child: ElevatedButton(
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
-                        // Verify OTP logic
-                        // Navigate to passenger dashboard after successful verification
-                        Navigator.pushReplacement(
+                        Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const PassengerDashboard(),
+                            builder: (context) =>
+                                const CNICVerificationScreen(),
                           ),
                         );
                       }
@@ -440,14 +386,13 @@ class _PassengerScreenState extends State<PassengerScreen> {
   }
 }
 
-// Passenger Dashboard (after verification)
+// 🎯 Passenger Dashboard
 class PassengerDashboard extends StatelessWidget {
   const PassengerDashboard({super.key});
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFFFC153b),
