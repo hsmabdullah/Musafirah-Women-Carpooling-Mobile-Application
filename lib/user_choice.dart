@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'passenger.dart';
+import 'passenger_screen.dart';
 import 'driver.dart';
+import 'login_screen.dart';
 
 class UserChoice extends StatefulWidget {
   const UserChoice({super.key});
@@ -17,7 +18,7 @@ class _UserChoiceState extends State<UserChoice> {
   // List of carousel images
   final List<String> _carouselImages = [
     'Assets/icons/handshake.png',
-    'Assets/icons/1.png', // Replace with your second carousel image
+    'Assets/icons/car_image.png', // Replace with your second carousel image
   ];
 
   @override
@@ -130,7 +131,7 @@ class _UserChoiceState extends State<UserChoice> {
                         shape: BoxShape.circle,
                         color: _currentPage == index
                             ? Colors.white
-                            : Colors.white.withOpacity(0.4),
+                            : Colors.white.withValues(alpha: 0.4),
                         border: _currentPage == index
                             ? null
                             : Border.all(color: Colors.white, width: 1.5),
@@ -181,6 +182,71 @@ class _UserChoiceState extends State<UserChoice> {
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: screenHeight * 0.045),
+
+                // Login Button (for already signed up users)
+                SizedBox(
+                  width: double.infinity,
+                  height: buttonHeight,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          (buttonHeight * 0.5).clamp(20.0, 30.0),
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      "Already have an account? Login",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: fontSizeButton,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: screenHeight * 0.02),
+
+                // Divider
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        thickness: 1,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth * 0.03,
+                      ),
+                      child: Text(
+                        'OR',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: fontSizeMedium,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        thickness: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: screenHeight * 0.02),
 
                 // Passenger Button
                 SizedBox(

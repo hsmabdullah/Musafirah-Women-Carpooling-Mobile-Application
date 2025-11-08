@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+// ignore: unused_import
+import 'passenger_screen.dart';
 import 'selfie_verification_screen.dart';
 
 class CNICVerificationScreen extends StatefulWidget {
@@ -37,7 +39,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
         source: source,
         imageQuality: 85,
       );
-      if (image != null) {
+      if (image != null && mounted) {
         setState(() {
           if (isFront) {
             _frontCNICImage = File(image.path);
@@ -47,9 +49,10 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
+      );
     }
   }
 
@@ -110,7 +113,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
     );
   }
 
-  void _proceedToSelfieVerification() {
+  void _proceedToDashboard() {
     if (_formKey.currentState!.validate()) {
       if (_frontCNICImage == null || _backCNICImage == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -125,11 +128,12 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
         return;
       }
 
-      Navigator.push(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (context) => const SelfieVerificationScreen(),
         ),
+        (route) => false,
       );
     }
   }
@@ -250,7 +254,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                             borderRadius: BorderRadius.circular(cardRadius),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
+                                color: Colors.grey.withValues(alpha: 0.1),
                                 spreadRadius: 1,
                                 blurRadius: 5,
                                 offset: const Offset(0, 2),
@@ -477,7 +481,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                             borderRadius: BorderRadius.circular(cardRadius),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
+                                color: Colors.grey.withValues(alpha: 0.1),
                                 spreadRadius: 1,
                                 blurRadius: 5,
                                 offset: const Offset(0, 2),
@@ -605,7 +609,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                             borderRadius: BorderRadius.circular(cardRadius),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
+                                color: Colors.grey.withValues(alpha: 0.1),
                                 spreadRadius: 1,
                                 blurRadius: 5,
                                 offset: const Offset(0, 2),
@@ -741,7 +745,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
+                      color: Colors.grey.withValues(alpha: 0.1),
                       spreadRadius: 1,
                       blurRadius: 5,
                       offset: const Offset(0, -2),
@@ -751,10 +755,10 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                 child: SizedBox(
                   height: buttonHeight,
                   child: ElevatedButton.icon(
-                    onPressed: _proceedToSelfieVerification,
+                    onPressed: _proceedToDashboard,
                     icon: const Icon(Icons.verified_user, color: Colors.white),
                     label: Text(
-                      'Proceed to Selfie Verification',
+                      'Complete Verification',
                       style: GoogleFonts.inter(
                         fontSize: fontSizeButton,
                         fontWeight: FontWeight.w600,

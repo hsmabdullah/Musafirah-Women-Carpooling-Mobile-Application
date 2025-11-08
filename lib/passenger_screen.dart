@@ -312,7 +312,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                   side: BorderSide(
                                     color: const Color(
                                       0xFFFC153b,
-                                    ).withOpacity(0.5),
+                                    ).withValues(alpha: 0.5),
                                     width: 1.5,
                                   ),
                                   backgroundColor: Colors.white,

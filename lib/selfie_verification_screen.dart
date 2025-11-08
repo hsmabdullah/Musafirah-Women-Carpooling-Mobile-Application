@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:camera/camera.dart';
+import 'package:musafirah_app/payment_screen.dart';
 import 'dart:io';
-import 'passenger.dart';
 
 class SelfieVerificationScreen extends StatefulWidget {
   const SelfieVerificationScreen({super.key});
@@ -182,7 +182,7 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const PassengerDashboard()),
+        MaterialPageRoute(builder: (context) => const PaymentScreen()),
         (route) => false,
       );
     }
@@ -270,7 +270,7 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
                           borderRadius: BorderRadius.circular(cardRadius),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: Colors.grey.withValues(alpha: 0.1),
                               spreadRadius: 1,
                               blurRadius: 5,
                               offset: const Offset(0, 2),
@@ -421,7 +421,7 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
+                    color: Colors.grey.withValues(alpha: 0.1),
                     spreadRadius: 1,
                     blurRadius: 5,
                     offset: const Offset(0, -2),
@@ -558,7 +558,7 @@ class CircleOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
+      ..color = Colors.white.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
 
     final center = Offset(size.width / 2, size.height / 2);

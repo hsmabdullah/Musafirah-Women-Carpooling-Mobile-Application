@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -10,55 +11,66 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  GoogleMapController? _mapController;
-  static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(31.5497, 74.3436), // Lahore, Pakistan coordinates
-    zoom: 12.0,
-  );
+  final MapController _mapController = MapController();
+  final LatLng _initialPosition = const LatLng(31.5497, 74.3436); // Lahore, Pakistan coordinates
 
-  final Set<Marker> _markers = {};
+  final List<Marker> _markers = [];
   LatLng? _selectedLocation;
 
   @override
   void initState() {
     super.initState();
-    // Add a default marker (you can customize this)
+    // Add a default marker
     _markers.add(
-      const Marker(
-        markerId: MarkerId('default'),
-        position: LatLng(31.5497, 74.3436),
-        infoWindow: InfoWindow(
-          title: 'Musafirah Pickup Point',
-          snippet: 'Lahore, Pakistan',
+      Marker(
+        point: _initialPosition,
+        width: 40,
+        height: 40,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFC153b),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+          ),
+          child: const Icon(
+            Icons.location_on,
+            color: Colors.white,
+            size: 24,
+          ),
         ),
       ),
     );
   }
 
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-  }
-
-  void _onMapTap(LatLng location) {
+  void _onMapTap(TapPosition tapPosition, LatLng location) {
     setState(() {
       _selectedLocation = location;
       _markers.clear();
       _markers.add(
         Marker(
-          markerId: const MarkerId('selected'),
-          position: location,
-          infoWindow: const InfoWindow(title: 'Selected Location'),
+          point: location,
+          width: 40,
+          height: 40,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFC153b),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+            ),
+            child: const Icon(
+              Icons.location_on,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
         ),
       );
     });
   }
 
   void _goToMyLocation() {
-    // This would typically get the user's current location
-    // For now, we'll animate to a default location
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(const LatLng(31.5497, 74.3436), 15.0),
-    );
+    // Move to default location
+    _mapController.move(_initialPosition, 15.0);
   }
 
   @override
@@ -99,16 +111,27 @@ class _MapScreenState extends State<MapScreen> {
       ),
       body: Stack(
         children: [
-          // Google Map
-          GoogleMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: _initialPosition,
-            markers: _markers,
-            onTap: _onMapTap,
-            myLocationButtonEnabled: false,
-            myLocationEnabled: true,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
+          // OpenStreetMap
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _initialPosition,
+              initialZoom: 12.0,
+              minZoom: 5.0,
+              maxZoom: 18.0,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+              ),
+              onTap: _onMapTap,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.musafirah_app',
+                maxZoom: 19,
+              ),
+              MarkerLayer(markers: _markers),
+            ],
           ),
 
           // Search Bar
@@ -126,7 +149,7 @@ class _MapScreenState extends State<MapScreen> {
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -170,7 +193,7 @@ class _MapScreenState extends State<MapScreen> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, -2),
                     ),
@@ -267,7 +290,6 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
-    _mapController?.dispose();
     super.dispose();
   }
 }
