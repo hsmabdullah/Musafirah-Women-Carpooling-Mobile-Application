@@ -1,0 +1,16 @@
+﻿Analyzing Musafirah-Women-Carpooling-Mobile-Application...      
+
+  error - The name 'EmergencyContact' isn't a type, so it can't be used as a type argument - lib\selfie_verification_screen.dart:214:10 - non_type_as_type_argument
+  error - The method 'EmergencyContact' isn't defined for the type '_SelfieVerificationScreenState' - lib\selfie_verification_screen.dart:222:11 - undefined_method
+
+flutter : 2 issues found. (ran in 6.5s)
+At line:1 char:1
++ flutter analyze 2>&1 | Out-File 
+-Encoding utf8 analysis3.txt
++ ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+NotSpecified: (2     issues found. (ran 
+in 6.5s):String) [], R    emoteException
+    + FullyQualifiedErrorId : 
+NativeCommandErr    or
+ 

@@ -41,6 +41,13 @@ dependencies:
   image_picker: ^1.0.7
   intl: ^0.19.0
   camera: ^0.10.5+5
+<<<<<<< Updated upstream
+=======
+  http: ^1.2.2
+  geolocator: ^13.0.1
+  google_mlkit_text_recognition: ^0.13.0
+  shared_preferences: ^2.2.2
+>>>>>>> Stashed changes
 
 dev_dependencies:
   flutter_test:

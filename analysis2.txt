@@ -1,0 +1,24 @@
+﻿Analyzing Musafirah-Women-Carpooling-Mobile-Application...      
+
+   info - The local variable '_extractCnicNumber' starts with an underscore - lib\cnic_verification_screen.dart:136:15 - no_leading_underscores_for_local_identifiers
+   info - The local variable '_extractName' starts with an underscore - lib\cnic_verification_screen.dart:156:15 - no_leading_underscores_for_local_identifiers
+   info - The local variable '_extractDate' starts with an underscore - lib\cnic_verification_screen.dart:199:15 - no_leading_underscores_for_local_identifiers
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\cnic_verification_screen.dart:274:9 - prefer_conditional_assignment
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\cnic_verification_screen.dart:275:9 - prefer_conditional_assignment
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\cnic_verification_screen.dart:276:9 - prefer_conditional_assignment
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\cnic_verification_screen.dart:278:9 - prefer_conditional_assignment
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\cnic_verification_screen.dart:279:9 - prefer_conditional_assignment
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\passenger.dart:315:39 - deprecated_member_use
+warning - Duplicate import - lib\passenger_live_tracking_screen.dart:28:8 - duplicate_import
+
+flutter : 10 issues found. (ran in 4.5s)
+At line:1 char:1
++ flutter analyze 2>&1 | Out-File 
+-Encoding utf8 analysis2.txt
++ ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecif 
+   ied: (10 issues found. (ran in 4.5s  
+  ):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCom 
+   mandError
+ 

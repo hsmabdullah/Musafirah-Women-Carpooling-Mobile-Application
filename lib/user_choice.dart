@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'passenger.dart';
 import 'driver.dart';
+<<<<<<< Updated upstream
+=======
+import 'login_screen.dart';
+import 'terms_of_use.dart';
+import 'privacy_policy.dart';
+>>>>>>> Stashed changes
 
 class UserChoice extends StatefulWidget {
   const UserChoice({super.key});
@@ -140,9 +147,11 @@ class _UserChoiceState extends State<UserChoice> {
                 ),
                 SizedBox(height: screenHeight * 0.035),
 
-                // Tagline Section
+                // Tagline Section (changes with carousel page)
                 Text(
-                  "Empowering Women's Mobility",
+                  _currentPage == 0
+                      ? "Empowering Women's Mobility"
+                      : "Your Journey, Our Priority",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: fontSizeLarge,
@@ -152,7 +161,9 @@ class _UserChoiceState extends State<UserChoice> {
                 ),
                 SizedBox(height: screenHeight * 0.015),
                 Text(
-                  "Travel with Confidence",
+                  _currentPage == 0
+                      ? "Travel with Confidence"
+                      : "Together, We Move Safely",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: fontSizeMedium,
@@ -162,7 +173,9 @@ class _UserChoiceState extends State<UserChoice> {
                 ),
                 SizedBox(height: screenHeight * 0.008),
                 Text(
-                  "A community built by women, for women",
+                  _currentPage == 0
+                      ? "A community built by women, for women"
+                      : "Creating secure travel spaces for women",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: fontSizeMedium,
@@ -172,7 +185,9 @@ class _UserChoiceState extends State<UserChoice> {
                 ),
                 SizedBox(height: screenHeight * 0.008),
                 Text(
-                  "Safe journeys that support freedom and independence",
+                  _currentPage == 0
+                      ? "Safe journeys that support freedom and independence"
+                      : "Confidence that travels with you",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: fontSizeSmall,
@@ -273,6 +288,16 @@ class _UserChoiceState extends State<UserChoice> {
                             decorationColor: Colors.white,
                             fontSize: fontSizePolicy,
                           ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const TermsOfUseScreen(),
+                                ),
+                              );
+                            },
                         ),
                         const TextSpan(text: " and "),
                         TextSpan(
@@ -284,6 +309,16 @@ class _UserChoiceState extends State<UserChoice> {
                             decorationColor: Colors.white,
                             fontSize: fontSizePolicy,
                           ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const PrivacyPolicyScreen(),
+                                ),
+                              );
+                            },
                         ),
                       ],
                     ),

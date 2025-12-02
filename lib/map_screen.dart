@@ -19,17 +19,39 @@ class _MapScreenState extends State<MapScreen> {
   final Set<Marker> _markers = {};
   LatLng? _selectedLocation;
 
+  double _markerSize = 40.0;
+  double _iconSize = 24.0;
+  double _borderWidth = 3.0;
+
   @override
   void initState() {
     super.initState();
     // Add a default marker (you can customize this)
     _markers.add(
+<<<<<<< Updated upstream
       const Marker(
         markerId: MarkerId('default'),
         position: LatLng(31.5497, 74.3436),
         infoWindow: InfoWindow(
           title: 'Musafirah Pickup Point',
           snippet: 'Lahore, Pakistan',
+=======
+      Marker(
+        point: _initialPosition,
+        width: _markerSize,
+        height: _markerSize,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFC153b),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: _borderWidth),
+          ),
+          child: Icon(
+            Icons.location_on,
+            color: Colors.white,
+            size: _iconSize,
+          ),
+>>>>>>> Stashed changes
         ),
       ),
     );
@@ -45,9 +67,27 @@ class _MapScreenState extends State<MapScreen> {
       _markers.clear();
       _markers.add(
         Marker(
+<<<<<<< Updated upstream
           markerId: const MarkerId('selected'),
           position: location,
           infoWindow: const InfoWindow(title: 'Selected Location'),
+=======
+          point: location,
+          width: _markerSize,
+          height: _markerSize,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFC153b),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: _borderWidth),
+            ),
+            child: Icon(
+              Icons.location_on,
+              color: Colors.white,
+              size: _iconSize,
+            ),
+          ),
+>>>>>>> Stashed changes
         ),
       );
     });
@@ -71,6 +111,11 @@ class _MapScreenState extends State<MapScreen> {
     final double fontSizeTitle = (screenWidth * 0.045).clamp(16.0, 20.0);
     final double fontSizeBody = (screenWidth * 0.038).clamp(14.0, 16.0);
     final double buttonHeight = (screenHeight * 0.055).clamp(45.0, 55.0);
+    
+    // Update marker sizes based on screen size
+    _markerSize = (screenWidth * 0.10).clamp(35.0, 50.0);
+    _iconSize = (screenWidth * 0.06).clamp(20.0, 28.0);
+    _borderWidth = (screenWidth * 0.008).clamp(2.5, 4.0);
 
     return Scaffold(
       appBar: AppBar(

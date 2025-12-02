@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+<<<<<<< Updated upstream
 import 'splashScreen.dart';
+=======
+import 'package:musafirah_app/splash_screen.dart';
+>>>>>>> Stashed changes
 
 void main() {
   runApp(const MyApp());
