@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:country_code_picker/country_code_picker.dart';
+import 'package:musafirah_app/driver_dashboard_screen.dart';
 import 'package:musafirah_app/passenger_dashboard_screen.dart';
-import 'package:musafirah_app/driver.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
   final String userType; // 'passenger' or 'driver'
@@ -559,7 +559,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           MaterialPageRoute(
             builder: (_) => widget.userType == 'passenger'
                 ? const PassengerDashboardScreen()
-                : const DriverScreen(),
+                : const DriverDashboardScreen(),
           ),
           (route) => false,
         );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:musafirah_app/login_screen.dart';
 import 'package:musafirah_app/splashScreen.dart';
 
 void main() {

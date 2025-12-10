@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'passenger_screen.dart';
-import 'driver.dart';
+import 'driver_registration_screen.dart'; // Changed import
 import 'login_screen.dart';
+import 'terms_conditions_screen.dart';
 
 class UserChoice extends StatefulWidget {
   const UserChoice({super.key});
@@ -11,355 +12,399 @@ class UserChoice extends StatefulWidget {
   State<UserChoice> createState() => _UserChoiceState();
 }
 
-class _UserChoiceState extends State<UserChoice> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+class _UserChoiceState extends State<UserChoice>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
-  // List of carousel images
-  final List<String> _carouselImages = [
-    'Assets/icons/handshake.png',
-    'Assets/icons/car_image.png', // Replace with your second carousel image
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
+
+    _animationController.forward();
+  }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size using MediaQuery
     final Size screenSize = MediaQuery.of(context).size;
-    final double screenWidth = screenSize.width;
     final double screenHeight = screenSize.height;
+    final double screenWidth = screenSize.width;
 
-    // Calculate responsive values using MediaQuery
-    final double horizontalPadding = screenWidth * 0.05; // 5% of screen width
-    final double logoHeight = (screenHeight * 0.08).clamp(40.0, 70.0);
-    final double logoWidth = (screenWidth * 0.60).clamp(200.0, 350.0);
-    final double carouselHeight = (screenHeight * 0.28).clamp(200.0, 350.0);
-    final double carouselWidth = (screenWidth * 0.70).clamp(250.0, 400.0);
-    final double buttonHeight = (screenHeight * 0.065).clamp(50.0, 60.0);
-    final double fontSizeLarge = (screenWidth * 0.055).clamp(18.0, 24.0);
-    final double fontSizeMedium = (screenWidth * 0.038).clamp(14.0, 18.0);
-    final double fontSizeSmall = (screenWidth * 0.032).clamp(11.0, 14.0);
-    final double fontSizeButton = (screenWidth * 0.042).clamp(15.0, 18.0);
-    final double fontSizePolicy = (screenWidth * 0.030).clamp(10.0, 13.0);
+    // Responsive measurements
+    final double headerHeight = screenHeight * 0.45;
+    final double logoSize = screenWidth * 0.28;
+    // Calculate where content starts to avoid overlapping the logo
+    final double contentStartTop = headerHeight + (logoSize * 0.5) + 10;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFC153b),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                SizedBox(height: screenHeight * 0.03),
-
-                // App Logo at the top with proper visibility
-                Center(
-                  child: Image.asset(
-                    'Assets/logos/Musafirah_text_logo.png',
-                    width: logoWidth,
-                    height: logoHeight,
-                    fit: BoxFit.fitWidth,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Text(
-                        'Musafirah',
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: fontSizeLarge * 1.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    },
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          // Background Header
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: headerHeight,
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('Assets/icons/woman_2.jpg'),
+                  fit: BoxFit.cover,
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(40),
+                  bottomRight: Radius.circular(40),
+                ),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(40),
+                    bottomRight: Radius.circular(40),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.2),
+                      const Color(0xFFFC153b).withOpacity(0.85),
+                    ],
                   ),
                 ),
-                SizedBox(height: screenHeight * 0.06),
-
-                // Image Carousel (2 images)
-                SizedBox(
-                  height: carouselHeight,
-                  width: carouselWidth,
-                  child: PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentPage = index;
-                      });
-                    },
-                    itemCount: _carouselImages.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.02,
+                child: SafeArea(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 10.0,
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LoginScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Log In',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.login_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Image.asset(
-                          _carouselImages[index],
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.white24,
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                color: Colors.white70,
-                                size: 80,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Main Content Area (Fixed Layout)
+          Positioned(
+            top: contentStartTop,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 10),
+                      Text(
+                        "Empowering\nWomen's Mobility",
+                        style: GoogleFonts.outfit(
+                          fontSize:
+                              28, // Slightly reduced for smaller screens overlap safety
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                          height: 1.15,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Choose your journey style",
+                        style: GoogleFonts.outfit(
+                          fontSize: 15,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+
+                      const Spacer(),
+
+                      // Cards
+                      _buildOutstandingCard(
+                        context,
+                        title: 'Passenger',
+                        subtitle: 'Get a safe ride in minutes',
+                        color: const Color(0xFFFC153b),
+                        icon: Icons.person_rounded,
+                        isPrimary: true,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PassengerScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildOutstandingCard(
+                        context,
+                        title: 'Driver',
+                        subtitle: 'Earn securely on your schedule',
+                        color: Colors.black87,
+                        icon: Icons.drive_eta_rounded,
+                        isPrimary: false,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const DriverRegistrationScreen(), // Changed Navigation
+                            ),
+                          );
+                        },
+                      ),
+
+                      const Spacer(),
+
+                      // Terms Text
+                      Padding(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).padding.bottom + 20,
+                        ),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TermsConditionsScreen(),
                               ),
                             );
                           },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.025),
-
-                // Carousel Indicators
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _carouselImages.length,
-                    (index) => Container(
-                      width: _currentPage == index ? 12.0 : 8.0,
-                      height: _currentPage == index ? 12.0 : 8.0,
-                      margin: EdgeInsets.symmetric(
-                        horizontal: screenWidth * 0.01,
-                      ),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _currentPage == index
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.4),
-                        border: _currentPage == index
-                            ? null
-                            : Border.all(color: Colors.white, width: 1.5),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.035),
-
-                // Tagline Section
-                Text(
-                  "Empowering Women's Mobility",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: fontSizeLarge,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: screenHeight * 0.015),
-                Text(
-                  "Travel with Confidence",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: fontSizeMedium,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: screenHeight * 0.008),
-                Text(
-                  "A community built by women, for women",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: fontSizeMedium,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: screenHeight * 0.008),
-                Text(
-                  "Safe journeys that support freedom and independence",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: fontSizeSmall,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: screenHeight * 0.045),
-
-                // Login Button (for already signed up users)
-                SizedBox(
-                  width: double.infinity,
-                  height: buttonHeight,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white, width: 2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          (buttonHeight * 0.5).clamp(20.0, 30.0),
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      "Already have an account? Login",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: fontSizeButton,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.02),
-
-                // Divider
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        thickness: 1,
-                      ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: screenWidth * 0.03,
-                      ),
-                      child: Text(
-                        'OR',
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: fontSizeMedium,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: Colors.white.withValues(alpha: 0.5),
-                        thickness: 1,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: screenHeight * 0.02),
-
-                // Passenger Button
-                SizedBox(
-                  width: double.infinity,
-                  height: buttonHeight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Navigate to passenger screen
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PassengerScreen(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          (buttonHeight * 0.5).clamp(20.0, 30.0),
-                        ),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: Text(
-                      "Continue as Passenger",
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFFF42B4E),
-                        fontSize: fontSizeButton,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.015),
-
-                // Driver Button
-                SizedBox(
-                  width: double.infinity,
-                  height: buttonHeight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Navigate to driver screen
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const DriverScreen(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF8A7B4),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          (buttonHeight * 0.5).clamp(20.0, 30.0),
-                        ),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: Text(
-                      "Continue as Driver",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: fontSizeButton,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: screenHeight * 0.025),
-
-                // Terms and Policy Text
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02),
-                  child: Text.rich(
-                    TextSpan(
-                      text: "Joining our app means you agree with our ",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: fontSizePolicy,
-                        height: 1.4,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: "Terms of Use",
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.underline,
-                            decorationColor: Colors.white,
-                            fontSize: fontSizePolicy,
+                          child: RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: GoogleFonts.outfit(
+                                fontSize: 12,
+                                color: Colors.grey[400],
+                              ),
+                              children: [
+                                const TextSpan(
+                                  text: "By continuing, you agree to our ",
+                                ),
+                                TextSpan(
+                                  text: "Terms & Conditions",
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[600],
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        const TextSpan(text: " and "),
-                        TextSpan(
-                          text: "Privacy Policy",
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.underline,
-                            decorationColor: Colors.white,
-                            fontSize: fontSizePolicy,
-                          ),
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: screenHeight * 0.02),
-              ],
+              ),
             ),
           ),
+
+          // Floating Logo (Positioned explicitly)
+          Positioned(
+            top: headerHeight - (logoSize * 0.5),
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Hero(
+                tag: 'app_logo',
+                child: Container(
+                  width: logoSize,
+                  height: logoSize,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Image.asset(
+                    'Assets/logos/musafirah_logo_final.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutstandingCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required Color color,
+    required IconData icon,
+    required bool isPrimary,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 90, // Slightly reduced height to ensure fix
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.withOpacity(0.08)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 25,
+              offset: const Offset(0, 10),
+            ),
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  bottomLeft: Radius.circular(24),
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(icon, color: Colors.white.withOpacity(0.2), size: 50),
+                  Icon(icon, color: Colors.white, size: 28),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      color: Colors.black87,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.outfit(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.grey[400],
+                size: 16,
+              ),
+            ),
+          ],
         ),
       ),
     );

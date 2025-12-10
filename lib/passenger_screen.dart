@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/payment_screen.dart';
@@ -17,6 +18,48 @@ class _PassengerScreenState extends State<PassengerScreen> {
   final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   CountryCode? _selectedCountryCode;
+  bool _otpSent = false;
+  String? _generatedOtp;
+  String? _otpError;
+
+  void _sendOtp() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final otp = (1000 + Random().nextInt(9000)).toString();
+    setState(() {
+      _generatedOtp = otp;
+      _otpSent = true;
+      _otpError = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('OTP sent: $otp', style: GoogleFonts.inter()),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _verifyOtp() {
+    if (!_otpSent) {
+      _sendOtp();
+      return;
+    }
+
+    final isValid = _formKey.currentState!.validate();
+    if (!isValid) return;
+
+    if (_otpController.text.trim() != _generatedOtp) {
+      setState(() => _otpError = 'Incorrect OTP, try again');
+      return;
+    }
+
+    setState(() => _otpError = null);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CNICVerificationScreen()),
+    );
+  }
 
   @override
   void dispose() {
@@ -232,107 +275,130 @@ class _PassengerScreenState extends State<PassengerScreen> {
                         ),
                         SizedBox(height: screenHeight * 0.03),
 
-                        // 🔢 OTP Section
-                        Text(
-                          'One-Time Password (OTP)',
-                          style: GoogleFonts.inter(
-                            fontSize: fontSizeLabel,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
+                        // 📨 Get OTP Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: inputHeight,
+                          child: ElevatedButton(
+                            onPressed: _sendOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFC153b),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                            ),
+                            child: Text(
+                              'Get OTP',
+                              style: GoogleFonts.inter(
+                                fontSize: fontSizeButton,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
-                        SizedBox(height: screenHeight * 0.01),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: inputHeight,
-                                child: TextFormField(
-                                  controller: _otpController,
-                                  keyboardType: TextInputType.number,
-                                  maxLength: 4,
-                                  textAlign: TextAlign.center,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter 4-digit OTP',
-                                    hintStyle: GoogleFonts.inter(
+                        SizedBox(height: screenHeight * 0.03),
+
+                        // 🔢 OTP Section
+                        if (_otpSent) ...[
+                          Text(
+                            'One-Time Password (OTP)',
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeLabel,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          SizedBox(height: screenHeight * 0.01),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: inputHeight,
+                                  child: TextFormField(
+                                    controller: _otpController,
+                                    keyboardType: TextInputType.number,
+                                    maxLength: 4,
+                                    textAlign: TextAlign.center,
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter 4-digit OTP',
+                                      hintStyle: GoogleFonts.inter(
+                                        fontSize: fontSizeBody,
+                                        color: Colors.grey[600],
+                                      ),
+                                      counterText: '',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                          color: Colors.grey[300]!,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFFC153b),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      errorText: _otpError,
+                                      errorStyle: GoogleFonts.inter(
+                                        color: Colors.red,
+                                        fontSize: 13,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                    style: GoogleFonts.inter(
                                       fontSize: fontSizeBody,
-                                      color: Colors.grey[600],
+                                      color: Colors.black87,
                                     ),
-                                    counterText: '',
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey[300]!,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFFC153b),
-                                        width: 2,
-                                      ),
-                                    ),
-                                    errorStyle: const TextStyle(height: 0),
-                                  ),
-                                  style: GoogleFonts.inter(
-                                    fontSize: fontSizeBody,
-                                    color: Colors.black87,
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter OTP';
-                                    }
-                                    if (value.length != 4) {
-                                      return 'OTP must be 4 digits';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: screenWidth * 0.03),
-                            SizedBox(
-                              height: inputHeight,
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'OTP resent to ${_phoneController.text}',
-                                        style: GoogleFonts.inter(),
-                                      ),
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(
-                                    color: const Color(
-                                      0xFFFC153b,
-                                    ).withValues(alpha: 0.5),
-                                    width: 1.5,
-                                  ),
-                                  backgroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Resend',
-                                  style: GoogleFonts.inter(
-                                    fontSize: fontSizeResend,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFFFC153b),
+                                    validator: (value) {
+                                      if (!_otpSent) return null;
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter OTP';
+                                      }
+                                      if (value.length != 4) {
+                                        return 'OTP must be 4 digits';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: screenHeight * 0.05),
+                              SizedBox(width: screenWidth * 0.03),
+                              SizedBox(
+                                height: inputHeight,
+                                child: OutlinedButton(
+                                  onPressed: _sendOtp,
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: const Color(
+                                        0xFFFC153b,
+                                      ).withValues(alpha: 0.5),
+                                      width: 1.5,
+                                    ),
+                                    backgroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Resend',
+                                    style: GoogleFonts.inter(
+                                      fontSize: fontSizeResend,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFFFC153b),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: screenHeight * 0.05),
+                        ],
                       ],
                     ),
                   ),
@@ -349,17 +415,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                   width: double.infinity,
                   height: buttonHeight,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const CNICVerificationScreen(),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _verifyOtp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFC153b),
                       shape: RoundedRectangleBorder(

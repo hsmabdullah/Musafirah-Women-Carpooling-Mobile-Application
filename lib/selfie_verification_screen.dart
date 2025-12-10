@@ -3,10 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:camera/camera.dart';
 import 'package:musafirah_app/payment_screen.dart';
+import 'driver_dashboard_screen.dart';
 import 'dart:io';
 
 class SelfieVerificationScreen extends StatefulWidget {
-  const SelfieVerificationScreen({super.key});
+  final bool isDriver;
+  const SelfieVerificationScreen({super.key, this.isDriver = false});
 
   @override
   State<SelfieVerificationScreen> createState() =>
@@ -182,7 +184,11 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const PaymentScreen()),
+        MaterialPageRoute(
+          builder: (context) => widget.isDriver
+              ? const DriverDashboardScreen()
+              : const PaymentScreen(),
+        ),
         (route) => false,
       );
     }
