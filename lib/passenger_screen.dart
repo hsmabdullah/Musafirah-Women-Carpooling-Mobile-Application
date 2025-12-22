@@ -529,6 +529,10 @@ class PassengerDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final double screenWidth = size.width;
+    final double screenHeight = size.height;
+    final double horizontalPadding = (screenWidth * 0.06).clamp(20.0, 30.0);
+    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFFFC153b),
@@ -539,7 +543,7 @@ class PassengerDashboard extends StatelessWidget {
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(horizontalPadding),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -559,7 +563,7 @@ class PassengerDashboard extends StatelessWidget {
                   style: GoogleFonts.inter(color: Colors.white),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: screenHeight * 0.025),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFB5132E),

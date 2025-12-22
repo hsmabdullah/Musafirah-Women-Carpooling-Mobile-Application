@@ -8,6 +8,10 @@
 
 import 'dart:async';
 import 'dart:convert';
+<<<<<<< HEAD
+=======
+import 'package:musafirah_app/models/emergency_contact.dart';
+>>>>>>> origin/Shayan
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -23,6 +27,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'passenger_chat_screen.dart';
 import 'payment_screen.dart';
+<<<<<<< HEAD
+=======
+import 'services/emergency_contact_service.dart';
+>>>>>>> origin/Shayan
 
 const String _socketBaseUrl = 'wss://api.example.com/rides';
 const String _restBaseUrl = 'https://api.example.com/api/rides';
@@ -408,6 +416,67 @@ class _PassengerLiveTrackingScreenState
 
   Future<void> _sendSos() async {
     if (_isSosSending) return;
+<<<<<<< HEAD
+=======
+
+    // Get emergency contacts
+    final contacts = await EmergencyContactService.getEmergencyContacts();
+
+    // Show contact selection dialog if contacts exist
+    if (contacts.isNotEmpty) {
+      if (!mounted) return;
+
+      // Show dialog to select contact
+      final selectedContact = await showDialog<EmergencyContact>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Select Emergency Contact',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: contacts.length,
+              itemBuilder: (context, index) {
+                final contact = contacts[index];
+                return ListTile(
+                  leading: const Icon(Icons.person, color: Color(0xFFFC153b)),
+                  title: Text(
+                    contact.name,
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    '${contact.relationship} • ${contact.phoneNumber}',
+                    style: GoogleFonts.inter(),
+                  ),
+                  onTap: () => Navigator.pop(context, contact),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (selectedContact != null) {
+        // Call selected contact
+        await launchUrlString('tel:${selectedContact.phoneNumber}');
+      }
+      // Note: "Call All" functionality removed for simplicity - user selects one contact
+    }
+
+    // Send SOS to backend
+>>>>>>> origin/Shayan
     if (mounted) setState(() => _isSosSending = true);
     try {
       final uri = Uri.parse('$_restBaseUrl/${widget.rideId}/sos');
@@ -418,6 +487,18 @@ class _PassengerLiveTrackingScreenState
           'latitude': _passengerLatLng?.latitude,
           'longitude': _passengerLatLng?.longitude,
         },
+<<<<<<< HEAD
+=======
+        'emergencyContacts': contacts
+            .map<Map<String, String>>(
+              (EmergencyContact c) => {
+                'name': c.name,
+                'phone': c.phoneNumber,
+                'relationship': c.relationship,
+              },
+            )
+            .toList(),
+>>>>>>> origin/Shayan
       };
       final response = await http.post(
         uri,
@@ -427,7 +508,14 @@ class _PassengerLiveTrackingScreenState
       if (response.statusCode == 200 || response.statusCode == 204) {
         if (mounted) setState(() => _isSosSent = true);
         _showSnack('SOS alert sent to control room.');
+<<<<<<< HEAD
         await launchUrlString('tel:$_emergencyNumber');
+=======
+        // Also call emergency number if contacts weren't available
+        if (contacts.isEmpty) {
+          await launchUrlString('tel:$_emergencyNumber');
+        }
+>>>>>>> origin/Shayan
       } else {
         _showSnack('Unable to send SOS. Please try again.');
       }
@@ -577,7 +665,11 @@ class _PassengerLiveTrackingScreenState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
+<<<<<<< HEAD
                       widget.driverName,
+=======
+                      'Driver ${widget.driverName}',
+>>>>>>> origin/Shayan
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w700,
                         fontSize: metrics.cardTitleFont,
@@ -585,7 +677,10 @@ class _PassengerLiveTrackingScreenState
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/Shayan
                     SizedBox(height: metrics.smallSpacing / 2),
                     Text(
                       'ETA: ${_etaText == '--' ? (widget.initialEta ?? '--') : _etaText}',
@@ -957,7 +1052,10 @@ class _PassengerLiveTrackingScreenState
                   rideId: widget.rideId,
                   pickupAddress: widget.pickupAddress ?? 'Pickup location',
                   dropoffAddress: widget.dropoffAddress ?? 'Drop-off location',
+<<<<<<< HEAD
                   driverName: widget.driverName,
+=======
+>>>>>>> origin/Shayan
                 ),
               ),
             );
