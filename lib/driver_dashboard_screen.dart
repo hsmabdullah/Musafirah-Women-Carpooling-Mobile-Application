@@ -9,7 +9,7 @@ import 'dart:async';
 
 import 'package:musafirah_app/services/osm_service.dart';
 import 'driver_ride_requests_screen.dart';
-import 'driver_explore_screen.dart';
+import 'driver_active_rides_screen.dart'; // Added
 import 'driver_wallet_screen.dart';
 import 'driver_profile_screen.dart';
 
@@ -118,13 +118,38 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         setState(() {
           _currentLocation = LatLng(position.latitude, position.longitude);
           _pickupLocation ??= _currentLocation;
-          if (_startLocationController.text == "Detecting Location..." ||
-              _startLocationController.text.isEmpty) {
-            _startLocationController.text = "Current Location";
-          }
         });
+
+        // 1. Move map immediately
         if (_mapReady) {
           _mapController.move(_currentLocation, 15.0);
+        }
+
+        // 2. Resolve Address (Reverse Geocoding)
+        if (_startLocationController.text == "Detecting Location..." ||
+            _startLocationController.text.isEmpty ||
+            _startLocationController.text == "Current Location") {
+          try {
+            final String? address = await OSMService.getPlaceName(
+              _currentLocation,
+            );
+            if (mounted && address != null) {
+              setState(() {
+                _startLocationController.text = address;
+              });
+            } else if (mounted) {
+              setState(() {
+                _startLocationController.text = "Current Location";
+              });
+            }
+          } catch (e) {
+            debugPrint("Error resolving address: $e");
+            if (mounted) {
+              setState(() {
+                _startLocationController.text = "Current Location";
+              });
+            }
+          }
         }
       }
     } catch (e) {
@@ -291,6 +316,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         builder: (context) => DriverRideRequestsScreen(
           driverPickup: pickup,
           driverDropoff: dropoff,
+          driverPickupAddress: pickupLabel,
+          driverDropoffAddress: dropoffLabel,
+          routePoints: _routePoints,
         ),
       ),
     );
@@ -435,7 +463,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 15,
                           spreadRadius: 2,
                           offset: const Offset(0, 5),
@@ -609,7 +637,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 12,
                             spreadRadius: 1,
                             offset: const Offset(0, 6),
@@ -698,7 +726,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                         ),
                       ],
                     ),
-                    child: Column(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       children: [
                         const SizedBox(height: 12),
                         Center(
@@ -714,122 +744,103 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                         const SizedBox(height: 20),
 
                         // FIND RIDE BUTTON
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                          child: Container(
-                            width: double.infinity,
-                            height: 55,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFC153b), Color(0xFFFF5252)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFFFC153b,
-                                  ).withOpacity(0.3),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
+                        Container(
+                          width: double.infinity,
+                          height: 55,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFC153b), Color(0xFFFF5252)],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
                             ),
-                            child: ElevatedButton(
-                              onPressed: _onFindRidePressed,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFFC153b,
+                                ).withValues(alpha: 0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
                               ),
-                              child: Text(
-                                "Find Rides",
-                                style: GoogleFonts.outfit(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _onFindRidePressed,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(
+                              "Find Rides",
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ),
 
                         const SizedBox(height: 20),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              _searchResults.isNotEmpty
-                                  ? "Search Results"
-                                  : "Recent Trips",
-                              style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _searchResults.isNotEmpty
+                                ? "Search Results"
+                                : "Recent Trips",
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                         const SizedBox(height: 10),
 
-                        // LIST
-                        Expanded(
-                          child: ListView(
-                            controller: scrollController,
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            children: [
-                              if (_searchResults.isNotEmpty)
-                                ..._searchResults.map(
-                                  (place) => _buildLocationItem(
-                                    title:
-                                        place['mainText'] ??
-                                        place['description'] ??
-                                        'Location',
-                                    subtitle:
-                                        place['secondaryText'] ??
-                                        place['description'] ??
-                                        '',
-                                    onTap: () {
-                                      final isPickup =
-                                          _startFocus.hasFocus ||
-                                          _activeFieldIsPickup;
-                                      _onPlaceSelected(
-                                        place,
-                                        isPickup: isPickup,
-                                      );
-                                    },
-                                  ),
-                                )
-                              else
-                                ..._recentTrips.map((trip) {
-                                  final label =
-                                      "${trip.pickupLabel} \u2192 ${trip.dropoffLabel}";
-                                  return _buildLocationItem(
-                                    title: label,
-                                    subtitle: "Last trip • ${trip.pickupLabel}",
-                                    onTap: () {
-                                      setState(() {
-                                        _pickupLocation = trip.pickup;
-                                        _dropoffLocation = trip.dropoff;
-                                        _startLocationController.text =
-                                            trip.pickupLabel;
-                                        _dropOffController.text =
-                                            trip.dropoffLabel;
-                                        _isSearching = false;
-                                        _searchResults = [];
-                                      });
-                                      _syncRoute();
-                                    },
-                                    isRecent: true,
-                                  );
-                                }),
-                              const SizedBox(height: 20),
-                            ],
-                          ),
-                        ),
+                        if (_searchResults.isNotEmpty)
+                          ..._searchResults.map(
+                            (place) => _buildLocationItem(
+                              title:
+                                  place['mainText'] ??
+                                  place['description'] ??
+                                  'Location',
+                              subtitle:
+                                  place['secondaryText'] ??
+                                  place['description'] ??
+                                  '',
+                              onTap: () {
+                                final isPickup =
+                                    _startFocus.hasFocus ||
+                                    _activeFieldIsPickup;
+                                _onPlaceSelected(place, isPickup: isPickup);
+                              },
+                            ),
+                          )
+                        else
+                          ..._recentTrips.map((trip) {
+                            final label =
+                                "${trip.pickupLabel} \u2192 ${trip.dropoffLabel}";
+                            return _buildLocationItem(
+                              title: label,
+                              subtitle: "Last trip • ${trip.pickupLabel}",
+                              onTap: () {
+                                setState(() {
+                                  _pickupLocation = trip.pickup;
+                                  _dropoffLocation = trip.dropoff;
+                                  _startLocationController.text =
+                                      trip.pickupLabel;
+                                  _dropOffController.text = trip.dropoffLabel;
+                                  _isSearching = false;
+                                  _searchResults = [];
+                                });
+                                _syncRoute();
+                              },
+                              isRecent: true,
+                            );
+                          }),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   );
@@ -838,8 +849,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
             ],
           ),
 
-          // 1: EXPLORE
-          const DriverExploreScreen(),
+          // 1: MY RIDES
+          DriverActiveRidesScreen(),
 
           // 2: WALLET
           const DriverWalletScreen(),
@@ -854,7 +865,10 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+            ),
           ],
         ),
         child: SafeArea(
@@ -864,7 +878,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(0, Icons.home_rounded, "Home"),
-                _buildNavItem(1, Icons.explore, "Explore"),
+                _buildNavItem(
+                  1,
+                  Icons.directions_car_filled_rounded,
+                  "My Rides",
+                ),
                 _buildNavItem(2, Icons.wallet, "Wallet"),
                 _buildNavItem(3, Icons.person_outline, "Profile"),
               ],
@@ -921,7 +939,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFFC153b).withOpacity(0.1)
+              ? const Color(0xFFFC153b).withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),

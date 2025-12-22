@@ -7,6 +7,7 @@ import 'dart:io';
 // ignore: unused_import
 import 'passenger_screen.dart';
 import 'selfie_verification_screen.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 
 class CNICVerificationScreen extends StatefulWidget {
   final bool isDriver;
@@ -41,6 +42,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
     'Friend',
   ];
   String _emergencyRelation = 'Family member';
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -59,16 +61,21 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
 
   Future<void> _populateFromFrontImage(File frontImage) async {
     final text = await _extractFrontText(frontImage);
+
     final parsed = _parseFrontData(text);
     setState(() {
       if (parsed['name']?.isNotEmpty ?? false) {
         _cnicNameController.text = parsed['name']!;
+        // Auto-fill Personal Details Name
+        _fullNameController.text = parsed['name']!;
       }
       if (parsed['number']?.isNotEmpty ?? false) {
         _cnicNumberController.text = parsed['number']!;
       }
       if (parsed['dob']?.isNotEmpty ?? false) {
         _cnicDobController.text = parsed['dob']!;
+        // Auto-fill Personal Details DOB
+        _dobController.text = parsed['dob']!;
       }
       if (parsed['issue']?.isNotEmpty ?? false) {
         _cnicIssueController.text = parsed['issue']!;
@@ -164,39 +171,83 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
         .replaceAll(RegExp(' +'), ' ')
         .trim();
 
-    if (cnicIndex > 0) {
-      final window = <String>[];
-      if (cnicIndex - 2 >= 0) window.add(lines[cnicIndex - 2]);
-      if (cnicIndex - 1 >= 0) window.add(lines[cnicIndex - 1]);
-      // try single-line first (closest first)
-      for (final line in window.reversed) {
-        final alpha = sanitizeAlpha(line);
-        if (alpha.split(' ').length >= 2 && alpha.length >= 6) {
-          candidateName = alpha;
-          break;
+    // Name Extraction
+    // 1. Define Ignore List (Headers often picked up as names)
+    final ignoreList = [
+      'identity number',
+      'identity card',
+      'national identity',
+      'father name',
+      'husband name',
+      'country of stay',
+      'pakistan',
+      'islamic republic',
+      'date of birth',
+      'date of issue',
+      'date of expiry',
+      'gender',
+      'family no',
+      'signature',
+      'name', // The label "Name" itself
+    ];
+
+    bool isIgnored(String s) {
+      final lower = s.toLowerCase();
+      return ignoreList.any((term) => lower.contains(term));
+    }
+
+    // Helper: Line must not contain digits 0-9 to be a valid name on CNIC
+    bool hasDigits(String s) => s.contains(RegExp(r'\d'));
+
+    // Name Extraction
+
+    // Strategy 1: Look for "Name" keyword and pick the next line
+    for (int i = 0; i < lines.length - 1; i++) {
+      // Precise match for "Name" header as seen in OCR debug
+      if (lines[i].trim() == 'Name') {
+        final candidate = lines[i + 1];
+        if (!isIgnored(candidate) && !hasDigits(candidate)) {
+          final alpha = sanitizeAlpha(candidate);
+          if (alpha.length >= 3) {
+            candidateName = alpha;
+            break;
+          }
         }
       }
-      // try two-line merge if still null
-      if (candidateName == null && window.length >= 2) {
-        final merged =
-            '${sanitizeAlpha(window[window.length - 2])} ${sanitizeAlpha(window[window.length - 1])}'
-                .replaceAll(RegExp(' +'), ' ')
-                .trim();
-        if (merged.split(' ').length >= 2 && merged.length >= 8) {
-          candidateName = merged;
+    }
+
+    // Strategy 2: Scan upwards from CNIC Number (Window fallback) - increased window
+    if (candidateName == null && cnicIndex > 0) {
+      final window = <String>[];
+      // Collect lines just above CNIC Number (Increased window size to 8)
+      for (int i = cnicIndex - 1; i >= 0 && i >= cnicIndex - 9; i--) {
+        window.add(lines[i]);
+      }
+
+      for (final line in window) {
+        if (isIgnored(line)) continue;
+        if (hasDigits(line)) continue;
+
+        final alpha = sanitizeAlpha(line);
+        if (alpha.split(' ').length >= 2 && alpha.length >= 3) {
+          candidateName = alpha;
+          break;
         }
       }
     }
 
     if (candidateName == null) {
-      // pick the longest mostly-alpha line anywhere
+      // Fallback: pick the longest mostly-alpha line not in ignore list
       String best = '';
       for (final line in lines) {
+        if (isIgnored(line)) continue;
+        if (hasDigits(line)) continue;
+
         final alpha = sanitizeAlpha(line);
         final ratio = line.isEmpty
             ? 0
             : alpha.replaceAll(' ', '').length / line.length;
-        if (ratio > 0.5 &&
+        if (ratio > 0.6 &&
             alpha.length > best.length &&
             alpha.split(' ').length >= 2) {
           best = alpha;
@@ -309,7 +360,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
     );
   }
 
-  void _proceedToDashboard() {
+  void _proceedToDashboard() async {
     if (_formKey.currentState!.validate()) {
       if (_frontCNICImage == null || _backCNICImage == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -324,14 +375,74 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
         return;
       }
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              SelfieVerificationScreen(isDriver: widget.isDriver),
-        ),
-        (route) => false,
-      );
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final user = AuthService.currentUser;
+        if (user == null) return;
+
+        // Upload CNIC images sequentially for better stability
+        debugPrint("Uploading front CNIC...");
+        String? frontUrl = await AuthService.uploadImage(
+          'users/${user.uid}/cnic_front.jpg',
+          _frontCNICImage!,
+        );
+
+        if (frontUrl == null) throw 'Front CNIC upload failed';
+
+        debugPrint("Uploading back CNIC...");
+        String? backUrl = await AuthService.uploadImage(
+          'users/${user.uid}/cnic_back.jpg',
+          _backCNICImage!,
+        );
+
+        if (backUrl == null) throw 'Back CNIC upload failed';
+
+        // If we're here, frontUrl and backUrl are NOT null because of the throws above
+        await AuthService.saveUserData(
+          uid: user.uid,
+          role: widget.isDriver ? 'driver' : 'passenger',
+          phone: user.phoneNumber ?? '',
+          name: _fullNameController.text.trim(),
+          extraData: {
+            'city': _cityController.text.trim(),
+            'dob': _dobController.text.trim(),
+            'cnic_name': _cnicNameController.text.trim(),
+            'Cnic_Number': _cnicNumberController.text.trim(),
+            'cnic_dob': _cnicDobController.text.trim(),
+            'cnic_issue': _cnicIssueController.text.trim(),
+            'cnic_expiry': _cnicExpiryController.text.trim(),
+            'emergency_relation': _emergencyRelation,
+            'emergency_contact': _emergencyContactController.text.trim(),
+            'image_cnic_front': frontUrl,
+            'image_cnic_back': backUrl,
+            'registrationStep': 'cnic_completed',
+          },
+        );
+
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                SelfieVerificationScreen(isDriver: widget.isDriver),
+          ),
+          (route) => false,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -677,7 +788,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                               ),
                               SizedBox(height: screenHeight * 0.008),
                               DropdownButtonFormField<String>(
-                                value: _emergencyRelation,
+                                initialValue: _emergencyRelation,
                                 items: _emergencyRelations
                                     .map(
                                       (r) => DropdownMenuItem(
@@ -1352,16 +1463,24 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                 child: SizedBox(
                   height: buttonHeight,
                   child: ElevatedButton.icon(
-                    onPressed: _proceedToDashboard,
-                    icon: const Icon(Icons.verified_user, color: Colors.white),
-                    label: Text(
-                      'Complete Verification',
-                      style: GoogleFonts.inter(
-                        fontSize: fontSizeButton,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
+                    onPressed: _isLoading ? null : _proceedToDashboard,
+                    icon: _isLoading
+                        ? const SizedBox.shrink()
+                        : const Icon(Icons.verified_user, color: Colors.white),
+                    label: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Complete Verification',
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeButton,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFC153b),
                       shape: RoundedRectangleBorder(

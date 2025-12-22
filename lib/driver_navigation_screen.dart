@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'chat_screen.dart';
 import 'driver_payment_screen.dart';
+import 'package:musafirah_app/driver_data.dart';
 
 class DriverNavigationScreen extends StatefulWidget {
   final LatLng start;
@@ -161,7 +162,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         children: [
           // MAP SECTION (Top Half)
           Expanded(
-            flex: 5,
+            flex: 3, // Reduced from 5 to give more space to bottom sheet
             child: Stack(
               children: [
                 FlutterMap(
@@ -268,7 +269,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
 
           // INSTRUCTIONS SECTION (Bottom Half)
           Expanded(
-            flex: 6,
+            flex: 7, // Increased from 6
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -277,7 +278,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, -5),
                   ),
@@ -392,74 +393,91 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                   ),
 
                   // Complete Trip Button
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Container(
-                      width: double.infinity,
-                      height: 55,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFC153b), Color(0xFFFF5252)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFC153b).withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Container(
+                        width: double.infinity,
+                        height: 55,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFC153b), Color(0xFFFF5252)],
                           ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Complete Logic
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text("Complete Trip?"),
-                              content: const Text(
-                                "Are you sure you have dropped off the passenger?",
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text("No"),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pop(ctx); // Close Dialog
-                                    // Navigate to Payment
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            DriverPaymentScreen(
-                                              passengerName:
-                                                  widget.passengerName,
-                                              price: widget.price,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text("Yes, Complete"),
-                                ),
-                              ],
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFFFC153b,
+                              ).withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                          ],
                         ),
-                        child: Text(
-                          "Complete Trip",
-                          style: GoogleFonts.outfit(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Complete Logic
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text("Complete Trip?"),
+                                content: const Text(
+                                  "Are you sure you have dropped off the passenger?",
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: const Text("No"),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(ctx); // Close Dialog
+
+                                      // Restore Capacity & Remove from Active
+                                      if (DriverData.carCapacity <
+                                          DriverData.totalCapacity) {
+                                        DriverData.carCapacity += 1;
+                                      }
+                                      DriverData.acceptedRides.removeWhere(
+                                        (r) =>
+                                            r.passengerName ==
+                                            widget.passengerName,
+                                      );
+
+                                      // Navigate to Payment
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              DriverPaymentScreen(
+                                                passengerName:
+                                                    widget.passengerName,
+                                                price: widget.price,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text("Yes, Complete"),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            "Complete Trip",
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),

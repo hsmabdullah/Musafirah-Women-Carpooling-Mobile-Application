@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "931957871165",
+    "project_id": "musafirah-app",
+    "storage_bucket": "musafirah-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:931957871165:android:48d8117474cc69e3709054",
+        "android_client_info": {
+          "package_name": "com.example.musafirah_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRHFTnBo3H17LPrHJveMU46TBHUDxAyvo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

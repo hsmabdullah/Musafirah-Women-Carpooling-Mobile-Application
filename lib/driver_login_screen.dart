@@ -12,7 +12,6 @@ class DriverLoginScreen extends StatefulWidget {
 class _DriverLoginScreenState extends State<DriverLoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
-  bool _otpSent = false;
 
   @override
   void dispose() {
@@ -23,8 +22,6 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Size screenSize = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: const Color(
         0xFFF5F6F8,
@@ -103,9 +100,6 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                 height: 50,
                 child: OutlinedButton(
                   onPressed: () {
-                    setState(() {
-                      _otpSent = true;
-                    });
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Your OTP is 123456')),
                     );

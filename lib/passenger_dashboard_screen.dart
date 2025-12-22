@@ -8,6 +8,7 @@ import 'package:musafirah_app/ride_booking_screen.dart';
 import 'package:musafirah_app/ride_confirmed_screen.dart';
 import 'package:musafirah_app/wallet_history_screen.dart';
 import 'package:musafirah_app/rider_profile_screen.dart';
+import 'package:musafirah_app/utils/id_utils.dart';
 
 class PassengerDashboardScreen extends StatefulWidget {
   const PassengerDashboardScreen({super.key});
@@ -527,7 +528,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     final driver =
         _driverProfiles[_driverProfileIndex % _driverProfiles.length];
     _driverProfileIndex = (_driverProfileIndex + 1) % _driverProfiles.length;
-    final generatedRideId = 'ride_${DateTime.now().millisecondsSinceEpoch}';
+    final generatedRideId = IdUtils.generateRideId();
     const userId = 'passenger_demo_user';
 
     // Navigate to ride booking screen immediately

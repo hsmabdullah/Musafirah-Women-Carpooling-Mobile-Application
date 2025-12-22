@@ -12,6 +12,7 @@ class PaymentScreen extends StatefulWidget {
     this.pickupAddress = 'Pickup location',
     this.dropoffAddress = 'Drop-off location',
     this.autoReturnToDashboard = true,
+    this.driverName = 'Driver',
   });
 
   final double fare;
@@ -19,6 +20,7 @@ class PaymentScreen extends StatefulWidget {
   final String pickupAddress;
   final String dropoffAddress;
   final bool autoReturnToDashboard;
+  final String driverName;
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -52,6 +54,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         dropoff: widget.dropoffAddress,
         fare: _totalFare,
         timestamp: timestamp,
+        isWalletPayment:
+            _selectedPaymentMethod == 2, // Only deduct if wallet used
         rating: _driverRating,
         comment: _commentController.text.isNotEmpty
             ? _commentController.text
@@ -174,67 +178,83 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               ),
                             ),
                             SizedBox(height: screenHeight * 0.012),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Total Fare',
-                                  style: GoogleFonts.inter(
-                                    color: const Color(0xFFFC153b),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  'Rs. ${_totalFare.toStringAsFixed(0)}',
-                                  style: GoogleFonts.inter(
-                                    color: const Color(0xFFFC153b),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: fontSizeTitle,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: screenHeight * 0.01),
-                            Divider(color: Colors.grey[300]),
-                            SizedBox(height: screenHeight * 0.006),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Base Fare',
-                                  style: GoogleFonts.inter(
-                                    color: Colors.black54,
-                                    fontSize: fontSizeBody,
-                                  ),
-                                ),
-                                Text(
-                                  'Rs. 650.00',
-                                  style: GoogleFonts.inter(
-                                    color: Colors.black87,
-                                    fontSize: fontSizeBody,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: screenHeight * 0.006),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Taxes & Fees',
-                                  style: GoogleFonts.inter(
-                                    color: Colors.black54,
-                                    fontSize: fontSizeBody,
-                                  ),
-                                ),
-                                Text(
-                                  'Rs. 100.00',
-                                  style: GoogleFonts.inter(
-                                    color: Colors.black87,
-                                    fontSize: fontSizeBody,
-                                  ),
-                                ),
-                              ],
+                            // Dynamic Calculation
+                            Builder(
+                              builder: (context) {
+                                final double tax = (_totalFare * 0.05)
+                                    .roundToDouble(); // 5% Tax
+                                final double baseFare = _totalFare - tax;
+
+                                return Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Total Fare',
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFFFC153b),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Rs. ${_totalFare.toStringAsFixed(0)}',
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFFFC153b),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: fontSizeTitle,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: screenHeight * 0.01),
+                                    Divider(color: Colors.grey[300]),
+                                    SizedBox(height: screenHeight * 0.006),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Base Fare (95%)',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.black54,
+                                            fontSize: fontSizeBody,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Rs. ${baseFare.toStringAsFixed(0)}',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.black87,
+                                            fontSize: fontSizeBody,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: screenHeight * 0.006),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Taxes & Fees (5%)',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.black54,
+                                            fontSize: fontSizeBody,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Rs. ${tax.toStringAsFixed(0)}',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.black87,
+                                            fontSize: fontSizeBody,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -322,7 +342,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Ayesha Khan',
+                                        widget.driverName,
                                         style: GoogleFonts.inter(
                                           fontWeight: FontWeight.w600,
                                         ),

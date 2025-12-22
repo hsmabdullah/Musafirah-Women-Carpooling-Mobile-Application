@@ -4,6 +4,7 @@ import 'passenger_screen.dart';
 import 'driver_registration_screen.dart'; // Changed import
 import 'login_screen.dart';
 import 'terms_conditions_screen.dart';
+import 'screens/admin/admin_login_screen.dart' as admin;
 
 class UserChoice extends StatefulWidget {
   const UserChoice({super.key});
@@ -93,8 +94,8 @@ class _UserChoiceState extends State<UserChoice>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withOpacity(0.2),
-                      const Color(0xFFFC153b).withOpacity(0.85),
+                      Colors.black.withValues(alpha: 0.2),
+                      const Color(0xFFFC153b).withValues(alpha: 0.85),
                     ],
                   ),
                 ),
@@ -121,10 +122,10 @@ class _UserChoiceState extends State<UserChoice>
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(25),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               width: 1,
                             ),
                           ),
@@ -166,113 +167,142 @@ class _UserChoiceState extends State<UserChoice>
               opacity: _fadeAnimation,
               child: SlideTransition(
                 position: _slideAnimation,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 10),
-                      Text(
-                        "Empowering\nWomen's Mobility",
-                        style: GoogleFonts.outfit(
-                          fontSize:
-                              28, // Slightly reduced for smaller screens overlap safety
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black87,
-                          height: 1.15,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 10),
+                        Text(
+                          "Empowering\nWomen's Mobility",
+                          style: GoogleFonts.outfit(
+                            fontSize:
+                                28, // Slightly reduced for smaller screens overlap safety
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                            height: 1.15,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Choose your journey style",
-                        style: GoogleFonts.outfit(
-                          fontSize: 15,
-                          color: Colors.grey[500],
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 8),
+                        Text(
+                          "Choose your journey style",
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
 
-                      const Spacer(),
+                        const SizedBox(height: 32),
 
-                      // Cards
-                      _buildOutstandingCard(
-                        context,
-                        title: 'Passenger',
-                        subtitle: 'Get a safe ride in minutes',
-                        color: const Color(0xFFFC153b),
-                        icon: Icons.person_rounded,
-                        isPrimary: true,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PassengerScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildOutstandingCard(
-                        context,
-                        title: 'Driver',
-                        subtitle: 'Earn securely on your schedule',
-                        color: Colors.black87,
-                        icon: Icons.drive_eta_rounded,
-                        isPrimary: false,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const DriverRegistrationScreen(), // Changed Navigation
-                            ),
-                          );
-                        },
-                      ),
-
-                      const Spacer(),
-
-                      // Terms Text
-                      Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).padding.bottom + 20,
-                        ),
-                        child: GestureDetector(
+                        // Cards
+                        _buildOutstandingCard(
+                          context,
+                          title: 'Passenger',
+                          subtitle: 'Get a safe ride in minutes',
+                          color: const Color(0xFFFC153b),
+                          icon: Icons.person_rounded,
+                          isPrimary: true,
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const TermsConditionsScreen(),
+                                builder: (context) => const PassengerScreen(),
                               ),
                             );
                           },
-                          child: RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildOutstandingCard(
+                          context,
+                          title: 'Driver',
+                          subtitle: 'Earn securely on your schedule',
+                          color: Colors.black87,
+                          icon: Icons.drive_eta_rounded,
+                          isPrimary: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const DriverRegistrationScreen(), // Changed Navigation
                               ),
-                              children: [
-                                const TextSpan(
-                                  text: "By continuing, you agree to our ",
-                                ),
-                                TextSpan(
-                                  text: "Terms & Conditions",
-                                  style: GoogleFonts.outfit(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[600],
-                                    decoration: TextDecoration.underline,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildOutstandingCard(
+                          context,
+                          title: 'Admin',
+                          subtitle: 'Manage platform securely',
+                          color: const Color(
+                            0xFF1976D2,
+                          ), // Blue color for admin
+                          icon: Icons.admin_panel_settings_rounded,
+                          isPrimary: false,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const admin.LoginScreen(),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(
+                          height: 24,
+                        ), // Replaced Spacer with SizedBox
+                        // Terms Text
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).padding.bottom + 8,
+                          ),
+                          child: Column(
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const TermsConditionsScreen(),
+                                    ),
+                                  );
+                                },
+                                child: RichText(
+                                  textAlign: TextAlign.center,
+                                  text: TextSpan(
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      color: Colors.grey[400],
+                                    ),
+                                    children: [
+                                      const TextSpan(
+                                        text:
+                                            "By continuing, you agree to our ",
+                                      ),
+                                      TextSpan(
+                                        text: "Terms & Conditions",
+                                        style: GoogleFonts.outfit(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.grey[600],
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -290,21 +320,26 @@ class _UserChoiceState extends State<UserChoice>
                 child: Container(
                   width: logoSize,
                   height: logoSize,
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.zero,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: Image.asset(
-                    'Assets/logos/musafirah_logo_final.png',
-                    fit: BoxFit.contain,
+                  child: ClipOval(
+                    child: Transform.scale(
+                      scale: 1.25,
+                      child: Image.asset(
+                        'Assets/logos/musafirah_logo_final.jpg',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -331,15 +366,15 @@ class _UserChoiceState extends State<UserChoice>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey.withOpacity(0.08)),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
               blurRadius: 25,
               offset: const Offset(0, 10),
             ),
             BoxShadow(
-              color: Colors.grey.withOpacity(0.05),
+              color: Colors.grey.withValues(alpha: 0.05),
               blurRadius: 5,
               offset: const Offset(0, 2),
             ),
@@ -360,7 +395,11 @@ class _UserChoiceState extends State<UserChoice>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Icon(icon, color: Colors.white.withOpacity(0.2), size: 50),
+                  Icon(
+                    icon,
+                    color: Colors.white.withValues(alpha: 0.2),
+                    size: 50,
+                  ),
                   Icon(icon, color: Colors.white, size: 28),
                 ],
               ),

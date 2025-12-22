@@ -39,7 +39,7 @@ class DriverExploreScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFC153b).withOpacity(0.3),
+                    color: const Color(0xFFFC153b).withValues(alpha: 0.3),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -70,7 +70,7 @@ class DriverExploreScreen extends StatelessWidget {
                   Text(
                     "Clifton & DHA are currently experiencing high demand. Drive there to earn up to 1.5x surge pricing!",
                     style: GoogleFonts.outfit(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 14,
                     ),
                   ),
@@ -145,7 +145,7 @@ class DriverExploreScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -184,7 +184,7 @@ class DriverExploreScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: demandColor.withOpacity(0.1),
+              color: demandColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(

@@ -1,9 +1,9 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:country_code_picker/country_code_picker.dart';
-import 'cnic_verification_screen.dart';
+
 import 'driver_license_screen.dart'; // Forward reference to the next step
+import 'package:musafirah_app/services/auth_service.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
   const DriverRegistrationScreen({super.key});
@@ -17,31 +17,66 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  CountryCode? _selectedCountryCode;
-  bool _otpSent = false;
-  String? _generatedOtp;
-  String? _otpError;
 
-  void _sendOtp() {
+  bool _otpSent = false;
+  String? _verificationId;
+  bool _isLoading = false;
+  String? _otpError;
+  CountryCode? _selectedCountryCode;
+
+  void _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Use consistent OTP for testing convenience
-    final otp = "123456";
     setState(() {
-      _generatedOtp = otp;
-      _otpSent = true;
-      _otpError = null;
+      _isLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Your OTP is $otp', style: GoogleFonts.outfit()),
-        duration: const Duration(seconds: 4),
-      ),
+    final phoneNumber = _phoneController.text.trim();
+    final countryCode = _selectedCountryCode?.dialCode ?? '+92';
+    final fullPhoneNumber = '$countryCode$phoneNumber';
+
+    await AuthService.verifyPhoneNumber(
+      phoneNumber: fullPhoneNumber,
+      onCodeSent: (verificationId) {
+        if (!mounted) return;
+        setState(() {
+          _verificationId = verificationId;
+          _otpSent = true;
+          _isLoading = false;
+          _otpError = null;
+        });
+
+        final otpMessage = AuthService.useDemoMode
+            ? 'OTP sent to $fullPhoneNumber (Demo: ${AuthService.demoGeneratedOtp})'
+            : 'OTP sent to $fullPhoneNumber';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(otpMessage, style: GoogleFonts.outfit()),
+            duration: const Duration(seconds: 8),
+            backgroundColor: AuthService.useDemoMode ? Colors.green : null,
+          ),
+        );
+      },
+      onFailed: (e) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Verification failed: ${e.message}',
+              style: GoogleFonts.outfit(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
     );
   }
 
-  void _verifyOtp() {
+  void _verifyOtp() async {
     if (!_otpSent) {
       _sendOtp();
       return;
@@ -50,30 +85,45 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
     final isValid = _formKey.currentState!.validate();
     if (!isValid) return;
 
-    if (_otpController.text.trim() != _generatedOtp) {
-      setState(() => _otpError = 'Incorrect OTP, try again');
-      return;
-    }
+    if (_verificationId == null) return;
 
-    setState(() => _otpError = null);
+    setState(() {
+      _isLoading = true;
+    });
 
-    // Navigate to CNIC Verification, but we might need a modified version or flow wrapper
-    // For now, let's assume CNIC is consistent for both, but we need to chain License after it.
-    // Ideally, we'd pass a "nextScreen" or "userType" to CNIC screen, but since we can't easily refactor big files right now,
-    // I will navigate to License Screen directly if CNIC was already done, OR we assume this flow:
-    // Registration -> License -> Car -> CNIC (or some order).
-    // The user said "also add... details of license... vehicle".
-    // I will Navigate to the License Screen FIRST to collect driver specific info, then maybe CNIC later?
-    // Usually Identity (CNIC) comes first.
-    // I will actually stick to: Registration -> CNIC (Existing) -> License -> Car.
-    // BUT `CNICVerificationScreen` currently navigates to `SelfieVerificationScreen` then Dashboard.
-    // I might need to Create a `DriverCNICVerificationScreen` OR `DriverLicenseScreen` that includes CNIC?
-    // Let's create `DriverLicenseScreen` next.
+    final smsCode = _otpController.text.trim();
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const DriverLicenseScreen()),
+    final userCredential = await AuthService.signInWithOTP(
+      verificationId: _verificationId!,
+      smsCode: smsCode,
     );
+
+    if (!mounted) return;
+
+    if (userCredential != null && userCredential.user != null) {
+      // Success
+      final uid = userCredential.user!.uid;
+      final phone =
+          userCredential.user!.phoneNumber ?? AuthService.demoPhone ?? '';
+
+      // Save initial driver data with placeholders
+      await AuthService.initializeDriverData(uid: uid, phone: phone);
+
+      setState(() {
+        _isLoading = false;
+        _otpError = null;
+      });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const DriverLicenseScreen()),
+      );
+    } else {
+      setState(() {
+        _isLoading = false;
+        _otpError = 'Incorrect OTP, try again';
+      });
+    }
   }
 
   @override
@@ -222,14 +272,23 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(
-                      'Get OTP',
-                      style: GoogleFonts.outfit(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Get OTP',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
                 SizedBox(height: 30),
@@ -288,14 +347,23 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: Text(
-                        'Verify & Proceed',
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Verify & Proceed',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ],

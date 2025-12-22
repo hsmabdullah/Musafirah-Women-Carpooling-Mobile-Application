@@ -58,9 +58,12 @@ class _LoginScreenState extends State<LoginScreen>
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
-                  child: Image.asset(
-                    'Assets/logos/musafirah_logo_final.png',
-                    fit: BoxFit.contain,
+                  child: Transform.scale(
+                    scale: 1.15,
+                    child: Image.asset(
+                      'Assets/logos/no background logo.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ),
@@ -202,7 +205,9 @@ class _LoginScreenState extends State<LoginScreen>
                               : const Color(0xFFFC153b),
                           foregroundColor: Colors.white,
                           elevation: _selectedUserType == null ? 0 : 4,
-                          shadowColor: const Color(0xFFFC153b).withOpacity(0.4),
+                          shadowColor: const Color(
+                            0xFFFC153b,
+                          ).withValues(alpha: 0.4),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -294,7 +299,7 @@ class _LoginScreenState extends State<LoginScreen>
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFFC153b).withOpacity(0.3),
+                    color: const Color(0xFFFC153b).withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),

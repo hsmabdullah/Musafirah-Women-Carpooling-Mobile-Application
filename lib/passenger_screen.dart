@@ -1,10 +1,10 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/payment_screen.dart';
 import 'map_screen.dart';
 import 'package:country_code_picker/country_code_picker.dart';
 import 'cnic_verification_screen.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 
 class PassengerScreen extends StatefulWidget {
   const PassengerScreen({super.key});
@@ -18,29 +18,64 @@ class _PassengerScreenState extends State<PassengerScreen> {
   final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   CountryCode? _selectedCountryCode;
+  String? _verificationId;
   bool _otpSent = false;
-  String? _generatedOtp;
+  bool _isLoading = false;
   String? _otpError;
 
-  void _sendOtp() {
+  void _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final otp = (1000 + Random().nextInt(9000)).toString();
     setState(() {
-      _generatedOtp = otp;
-      _otpSent = true;
-      _otpError = null;
+      _isLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('OTP sent: $otp', style: GoogleFonts.inter()),
-        duration: const Duration(seconds: 2),
-      ),
+    final phoneNumber = _phoneController.text.trim();
+    final countryCode = _selectedCountryCode?.dialCode ?? '+92';
+    final fullPhoneNumber = '$countryCode$phoneNumber';
+
+    await AuthService.verifyPhoneNumber(
+      phoneNumber: fullPhoneNumber,
+      onCodeSent: (verificationId) {
+        if (!mounted) return;
+        setState(() {
+          _verificationId = verificationId;
+          _otpSent = true;
+          _isLoading = false;
+          _otpError = null;
+        });
+
+        final otpMessage = AuthService.useDemoMode
+            ? 'OTP sent to $fullPhoneNumber (Demo: ${AuthService.demoGeneratedOtp})'
+            : 'OTP sent to $fullPhoneNumber';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(otpMessage, style: GoogleFonts.inter()),
+            duration: const Duration(seconds: 8),
+            backgroundColor: AuthService.useDemoMode ? Colors.green : null,
+          ),
+        );
+      },
+      onFailed: (e) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Verification failed: ${e.message}',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
     );
   }
 
-  void _verifyOtp() {
+  void _verifyOtp() async {
     if (!_otpSent) {
       _sendOtp();
       return;
@@ -49,16 +84,43 @@ class _PassengerScreenState extends State<PassengerScreen> {
     final isValid = _formKey.currentState!.validate();
     if (!isValid) return;
 
-    if (_otpController.text.trim() != _generatedOtp) {
-      setState(() => _otpError = 'Incorrect OTP, try again');
-      return;
-    }
+    setState(() {
+      _isLoading = true;
+    });
 
-    setState(() => _otpError = null);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const CNICVerificationScreen()),
+    final smsCode = _otpController.text.trim();
+
+    final userCredential = await AuthService.signInWithOTP(
+      verificationId: _verificationId!,
+      smsCode: smsCode,
     );
+
+    if (!mounted) return;
+
+    if (userCredential != null && userCredential.user != null) {
+      // Success
+      final uid = userCredential.user!.uid;
+      final phone =
+          userCredential.user!.phoneNumber ?? AuthService.demoPhone ?? '';
+
+      // Save initial passenger data
+      await AuthService.saveUserData(uid: uid, role: 'passenger', phone: phone);
+
+      setState(() {
+        _isLoading = false;
+        _otpError = null;
+      });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CNICVerificationScreen()),
+      );
+    } else {
+      setState(() {
+        _isLoading = false;
+        _otpError = 'Incorrect OTP, try again';
+      });
+    }
   }
 
   @override
@@ -127,7 +189,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                         ),
                         SizedBox(height: screenHeight * 0.02),
                         Text(
-                          'Enter your phone number to receive a one-time password (OTP) and securely sign up. A 4-digit code will be sent to your number.',
+                          'Enter your phone number to receive a one-time password (OTP) and securely sign up. A 6-digit code will be sent to your number.',
                           style: GoogleFonts.inter(
                             fontSize: fontSizeBody,
                             color: Colors.black87,
@@ -288,14 +350,23 @@ class _PassengerScreenState extends State<PassengerScreen> {
                               ),
                               elevation: 2,
                             ),
-                            child: Text(
-                              'Get OTP',
-                              style: GoogleFonts.inter(
-                                fontSize: fontSizeButton,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    'Get OTP',
+                                    style: GoogleFonts.inter(
+                                      fontSize: fontSizeButton,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
                         ),
                         SizedBox(height: screenHeight * 0.03),
@@ -319,10 +390,10 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                   child: TextFormField(
                                     controller: _otpController,
                                     keyboardType: TextInputType.number,
-                                    maxLength: 4,
+                                    maxLength: 6,
                                     textAlign: TextAlign.center,
                                     decoration: InputDecoration(
-                                      hintText: 'Enter 4-digit OTP',
+                                      hintText: 'Enter 6-digit OTP',
                                       hintStyle: GoogleFonts.inter(
                                         fontSize: fontSizeBody,
                                         color: Colors.grey[600],
@@ -360,8 +431,8 @@ class _PassengerScreenState extends State<PassengerScreen> {
                                       if (value == null || value.isEmpty) {
                                         return 'Please enter OTP';
                                       }
-                                      if (value.length != 4) {
-                                        return 'OTP must be 4 digits';
+                                      if (value.length != 6) {
+                                        return 'OTP must be 6 digits';
                                       }
                                       return null;
                                     },
@@ -423,14 +494,23 @@ class _PassengerScreenState extends State<PassengerScreen> {
                       ),
                       elevation: 2,
                     ),
-                    child: Text(
-                      'Verify OTP',
-                      style: GoogleFonts.inter(
-                        fontSize: fontSizeButton,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Verify OTP',
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeButton,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ),

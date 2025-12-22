@@ -1,3 +1,5 @@
+import 'package:musafirah_app/utils/id_utils.dart';
+
 class WalletRepository {
   WalletRepository._();
 
@@ -6,70 +8,70 @@ class WalletRepository {
 
   static final List<WalletEntry> _entries = [
     WalletEntry(
-      id: 'txn_001',
+      id: 'TXN-K89J2-1029',
       title: 'Ride Payment (Clifton to DHA)',
-      subtitle: '2023-10-26 14:30',
+      subtitle: '2023-11-19 14:30',
       amount: -350,
-      timestamp: DateTime(2023, 10, 26, 14, 30),
+      timestamp: DateTime(2023, 11, 19, 14, 30),
       type: WalletEntryType.ridePayment,
     ),
     WalletEntry(
-      id: 'txn_002',
+      id: 'TXN-M72G1-5582',
       title: 'Wallet Top-up',
-      subtitle: '2023-10-25 09:00',
+      subtitle: '2023-11-18 09:00',
       amount: 1000,
-      timestamp: DateTime(2023, 10, 25, 9, 0),
+      timestamp: DateTime(2023, 11, 18, 9, 0),
       type: WalletEntryType.topUp,
     ),
     WalletEntry(
-      id: 'txn_003',
+      id: 'TXN-P11A0-9931',
       title: 'Ride Payment (Gulshan to Tariq Road)',
-      subtitle: '2023-10-24 18:15',
+      subtitle: '2023-11-17 18:15',
       amount: -420,
-      timestamp: DateTime(2023, 10, 24, 18, 15),
+      timestamp: DateTime(2023, 11, 17, 18, 15),
       type: WalletEntryType.ridePayment,
     ),
     WalletEntry(
-      id: 'txn_004',
+      id: 'TXN-B22Q9-4402',
       title: 'Referral Bonus',
-      subtitle: '2023-10-23 11:00',
+      subtitle: '2023-11-16 11:00',
       amount: 200,
-      timestamp: DateTime(2023, 10, 23, 11, 0),
+      timestamp: DateTime(2023, 11, 16, 11, 0),
       type: WalletEntryType.bonus,
     ),
     WalletEntry(
-      id: 'txn_005',
+      id: 'TXN-X44W5-7761',
       title: 'Ride Payment (Airport to Saddar)',
-      subtitle: '2023-10-22 21:00',
+      subtitle: '2023-11-15 21:00',
       amount: -700,
-      timestamp: DateTime(2023, 10, 22, 21, 0),
+      timestamp: DateTime(2023, 11, 15, 21, 0),
       type: WalletEntryType.ridePayment,
     ),
   ];
 
   static final List<RideHistoryEntry> _rideHistory = [
     RideHistoryEntry(
-      rideId: 'ride_20231026_01',
+      rideId: 'MUS-J92A-K182',
       pickup: 'Clifton, Karachi',
       dropoff: 'DHA Phase V, Karachi',
       fare: 350,
-      timestamp: DateTime(2023, 10, 26, 14, 30),
+      timestamp: DateTime(2023, 11, 19, 14, 30),
       status: 'Completed',
     ),
     RideHistoryEntry(
-      rideId: 'ride_20231024_02',
+      rideId: 'MUS-L08B-W221',
       pickup: 'Gulshan-e-Iqbal',
       dropoff: 'Tariq Road',
       fare: 420,
-      timestamp: DateTime(2023, 10, 24, 18, 15),
+      timestamp: DateTime(2023, 11, 17, 18, 15),
       status: 'Completed',
     ),
     RideHistoryEntry(
-      rideId: 'ride_20231022_03',
+      rideId: 'MUS-R55G-Z001',
       pickup: 'Karachi Airport',
       dropoff: 'Saddar',
       fare: 700,
-      timestamp: DateTime(2023, 10, 22, 21, 0),
+      timestamp: DateTime(2023, 11, 15, 21, 0),
       status: 'Completed',
     ),
   ];
@@ -97,7 +99,7 @@ class WalletRepository {
     _entries.insert(
       0,
       WalletEntry(
-        id: 'txn_${DateTime.now().millisecondsSinceEpoch}',
+        id: IdUtils.generateTransactionId(),
         title: source,
         subtitle: _formatDate(DateTime.now()),
         amount: amount,
@@ -113,25 +115,28 @@ class WalletRepository {
     required String dropoff,
     required double fare,
     required DateTime timestamp,
+    bool isWalletPayment = false,
     int rating = 0,
     String? comment,
   }) {
-    _entries.insert(
-      0,
-      WalletEntry(
-        id: 'txn_${timestamp.millisecondsSinceEpoch}',
-        title: 'Ride Payment ($pickup to $dropoff)',
-        subtitle: _formatDate(timestamp),
-        amount: -fare,
-        timestamp: timestamp,
-        type: WalletEntryType.ridePayment,
-        metadata: {
-          'rideId': rideId,
-          'rating': rating,
-          'comment': comment ?? '',
-        },
-      ),
-    );
+    if (isWalletPayment) {
+      _entries.insert(
+        0,
+        WalletEntry(
+          id: IdUtils.generateTransactionId(),
+          title: 'Ride Payment ($pickup to $dropoff)',
+          subtitle: _formatDate(timestamp),
+          amount: -fare,
+          timestamp: timestamp,
+          type: WalletEntryType.ridePayment,
+          metadata: {
+            'rideId': rideId,
+            'rating': rating,
+            'comment': comment ?? '',
+          },
+        ),
+      );
+    }
 
     _rideHistory.insert(
       0,

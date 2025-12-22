@@ -31,7 +31,9 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     setState(() {
-      _messages.add(_Message(sender: 'You', text: text, timestamp: DateTime.now()));
+      _messages.add(
+        _Message(sender: 'You', text: text, timestamp: DateTime.now()),
+      );
     });
     _controller.clear();
     // TODO: Integrate with backend chat APIs or socket events.
@@ -41,7 +43,11 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chat with ${widget.driverName}'),
+        title: Text(
+          widget.driverName,
+          style: GoogleFonts.inter(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: const Color(0xFFFC153b),
       ),
       body: Column(
@@ -54,12 +60,15 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
                 final message = _messages[index];
                 final isUser = message.sender == 'You';
                 return Align(
-                  alignment:
-                      isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: isUser
                           ? const Color(0xFFFC153b)

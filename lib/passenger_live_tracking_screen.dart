@@ -577,7 +577,7 @@ class _PassengerLiveTrackingScreenState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Driver ${widget.driverName}',
+                      widget.driverName,
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w700,
                         fontSize: metrics.cardTitleFont,
@@ -585,6 +585,7 @@ class _PassengerLiveTrackingScreenState
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
+
                     SizedBox(height: metrics.smallSpacing / 2),
                     Text(
                       'ETA: ${_etaText == '--' ? (widget.initialEta ?? '--') : _etaText}',
@@ -956,6 +957,7 @@ class _PassengerLiveTrackingScreenState
                   rideId: widget.rideId,
                   pickupAddress: widget.pickupAddress ?? 'Pickup location',
                   dropoffAddress: widget.dropoffAddress ?? 'Drop-off location',
+                  driverName: widget.driverName,
                 ),
               ),
             );

@@ -1,19 +1,28 @@
-import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
+
+import 'package:musafirah_app/driver_data.dart'; // Import the driver data
+import 'package:musafirah_app/services/osm_service.dart';
+import 'dart:async';
 
 import 'driver_navigation_screen.dart';
 
 class DriverRideRequestsScreen extends StatefulWidget {
   final LatLng driverPickup;
   final LatLng driverDropoff;
+  final String driverPickupAddress; // Added
+  final String driverDropoffAddress; // Added
+  final List<LatLng> routePoints;
 
   const DriverRideRequestsScreen({
     super.key,
     required this.driverPickup,
     required this.driverDropoff,
+    required this.driverPickupAddress, // Added
+    required this.driverDropoffAddress, // Added
+    this.routePoints = const [],
   });
 
   @override
@@ -24,66 +33,126 @@ class DriverRideRequestsScreen extends StatefulWidget {
 class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
   final List<_RideRequest> _availableRides = [];
   final Distance _distance = const Distance();
+  bool _isLoadingRides = true; // Loading state
 
   @override
   void initState() {
     super.initState();
-    _generateMockRides();
+    _generateMockRidesAsync();
   }
 
-  void _generateMockRides() {
-    // 1. GOOD RIDES (Matches Route)
+  Future<void> _generateMockRidesAsync() async {
+    final bool hasRoute = widget.routePoints.isNotEmpty;
+    // Helper to get name or fallback
+    Future<String> getName(LatLng p, String fallback) async {
+      try {
+        // Requires OSMService import. If not available in this file, we might need to move it or import it.
+        // Assuming OSMService is in 'package:musafirah_app/services/osm_service.dart'
+        // If we can't import, we'll use fallback.
+        // For now, let's try to use generic names if we can't easily import OSMService here without breaking things,
+        // BUT user wanted "dynamic", so let's import it.
+        return await OSMService.getPlaceName(p) ?? fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    // 1. Exact Route Match (Start -> End)
     _availableRides.add(
       _createMockRide(
         "Sarah Ahmed",
-        "Jinnah Ave, Blue Area",
-        "DHA Phase 2",
+        widget.driverPickupAddress,
+        widget.driverDropoffAddress,
         widget.driverPickup,
         widget.driverDropoff,
         4.8,
       ),
     );
 
-    _availableRides.add(
-      _createMockRide(
-        "Hira Mani",
-        "Clifton Block 4",
-        "Sea View",
-        _perturb(widget.driverPickup),
-        _perturb(widget.driverDropoff),
-        4.9,
-      ),
-    );
+    if (hasRoute && widget.routePoints.length > 20) {
+      int totalPoints = widget.routePoints.length;
 
-    _availableRides.add(
-      _createMockRide(
-        "Ali Raza",
-        "Near Pickup Point",
-        "Near Dropoff Point",
-        _perturb(widget.driverPickup, spread: 0.005),
-        _perturb(widget.driverDropoff, spread: 0.005),
-        4.7,
-      ),
-    );
+      // Calculate indices
+      int idx20 = (totalPoints * 0.2).floor();
+      int idx50 = (totalPoints * 0.5).floor();
+      int idx80 = (totalPoints * 0.8).floor();
 
-    // 2. Far Ride (Filtered out visually, but kept in logic just in case)
-    _availableRides.add(
-      _createMockRide(
-        "Far Person",
-        "North Nazimabad",
-        "Gadap Town",
-        const LatLng(24.98, 67.05),
-        const LatLng(25.0, 67.1),
-        4.5,
-      ),
-    );
-  }
+      LatLng p20 = widget.routePoints[idx20];
+      LatLng p50 = widget.routePoints[idx50];
+      LatLng p80 = widget.routePoints[idx80];
 
-  LatLng _perturb(LatLng original, {double spread = 0.01}) {
-    final random = Random();
-    double lat = original.latitude + (random.nextDouble() - 0.5) * spread;
-    double lng = original.longitude + (random.nextDouble() - 0.5) * spread;
-    return LatLng(lat, lng);
+      // Fetch names concurrently for speed
+      final results = await Future.wait([
+        getName(p20, "Route Stop A"),
+        getName(p50, "Halfway Stop"),
+        getName(p80, "Route Stop B"),
+      ]);
+
+      String name20 = results[0];
+      String name50 = results[1];
+      String name80 = results[2];
+
+      if (mounted) {
+        setState(() {
+          // Ride 1: 20% -> 80%
+          _availableRides.add(
+            _createMockRide("Hania Khan", name20, name80, p20, p80, 4.9),
+          );
+
+          // Ride 2: Start -> 50%
+          _availableRides.add(
+            _createMockRide(
+              "Sana Malik",
+              widget.driverPickupAddress,
+              name50,
+              widget.driverPickup,
+              p50,
+              4.7,
+            ),
+          );
+
+          // Ride 3: 50% -> End
+          _availableRides.add(
+            _createMockRide(
+              "Zara Ali",
+              name50,
+              widget.driverDropoffAddress,
+              p50,
+              widget.driverDropoff,
+              4.6,
+            ),
+          );
+
+          _isLoadingRides = false;
+
+          // Remove rides that are already accepted
+          _availableRides.removeWhere(
+            (ride) => DriverData.acceptedRides.any(
+              (accepted) =>
+                  accepted.passengerName == ride.name &&
+                  accepted.pickupName == ride.pickupName &&
+                  accepted.dropoffName == ride.dropoffName,
+            ),
+          );
+        });
+      }
+    } else {
+      // Fallback for short routes or no path
+      if (mounted) {
+        setState(() {
+          _isLoadingRides = false;
+          // Remove rides that are already accepted
+          _availableRides.removeWhere(
+            (ride) => DriverData.acceptedRides.any(
+              (accepted) =>
+                  accepted.passengerName == ride.name &&
+                  accepted.pickupName == ride.pickupName &&
+                  accepted.dropoffName == ride.dropoffName,
+            ),
+          );
+        });
+      }
+    }
   }
 
   _RideRequest _createMockRide(
@@ -110,6 +179,12 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
   }
 
   bool _isRideOnRoute(_RideRequest ride) {
+    // If we have a route, check against the route path
+    if (widget.routePoints.isNotEmpty) {
+      return _isPointNearRoute(ride.pickup) && _isPointNearRoute(ride.dropoff);
+    }
+
+    // Fallback to simple radius around start/end
     final double distPickup = _distance.as(
       LengthUnit.Kilometer,
       widget.driverPickup,
@@ -120,10 +195,38 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
       widget.driverDropoff,
       ride.dropoff,
     );
-    return distPickup < 5.0 && distDropoff < 5.0; // 5km radius buffer
+    return distPickup < 5.0 && distDropoff < 5.0;
+  }
+
+  bool _isPointNearRoute(LatLng point, {double thresholdKm = 2.0}) {
+    // Check if point is close to ANY point on the route
+    // Optimization: sampling every 5th point to save perf if route is huge
+    for (int i = 0; i < widget.routePoints.length; i += 5) {
+      final double dist = _distance.as(
+        LengthUnit.Kilometer,
+        point,
+        widget.routePoints[i],
+      );
+      if (dist < thresholdKm) return true;
+    }
+    return false;
   }
 
   void _acceptRide(_RideRequest ride, int index) {
+    // Check for capacity
+    if (DriverData.carCapacity < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Car is full! Cannot accept more rides.",
+            style: GoogleFonts.outfit(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     // Show Futuristic Loading Dialog
     showDialog(
       context: context,
@@ -136,11 +239,11 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFC153b).withOpacity(0.2),
+                  color: const Color(0xFFFC153b).withValues(alpha: 0.2),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -181,8 +284,36 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
 
     // Simulate Network Delay -> Success
     Future.delayed(const Duration(seconds: 2), () {
-      Navigator.pop(context); // Close loading
       if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      // Decrement Capacity
+      setState(() {
+        DriverData.carCapacity -= 1;
+        _availableRides.remove(ride); // Remove from available list
+      });
+
+      // Add to Active Rides
+      bool alreadyAdded = DriverData.acceptedRides.any(
+        (r) =>
+            r.passengerName == ride.name &&
+            r.pickupName == ride.pickupName &&
+            r.dropoffName == ride.dropoffName,
+      );
+
+      if (!alreadyAdded) {
+        DriverData.acceptedRides.add(
+          AcceptedRide(
+            passengerName: ride.name,
+            pickupName: ride.pickupName,
+            dropoffName: ride.dropoffName,
+            pickup: ride.pickup,
+            dropoff: ride.dropoff,
+            price: ride.price,
+            acceptedAt: DateTime.now(),
+          ),
+        );
+      }
 
       // Show Success Overlay
       showModalBottomSheet(
@@ -217,6 +348,15 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
               ),
               const SizedBox(height: 8),
               Text(
+                "Capacity Left: ${DriverData.carCapacity}",
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFFC153b),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
                 "Navigate to ${ride.name}'s pickup location.",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
@@ -231,7 +371,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                   onPressed: () {
                     Navigator.pop(ctx); // Close Sheet
                     // Navigate to Navigation Screen
-                    Navigator.pushReplacement(
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => DriverNavigationScreen(
@@ -305,7 +445,10 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
             color: Colors.white,
             shape: BoxShape.circle,
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+              ),
             ],
           ),
           child: IconButton(
@@ -335,7 +478,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFFFC153b).withOpacity(0.1),
+                    const Color(0xFFFC153b).withValues(alpha: 0.1),
                     Colors.transparent,
                   ],
                 ),
@@ -344,7 +487,25 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
           ),
 
           // Content
-          displayRides.isEmpty
+          _isLoadingRides
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(color: Color(0xFFFC153b)),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Finding riders along your route...",
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : displayRides.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -356,7 +517,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: Colors.grey.withValues(alpha: 0.1),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
@@ -389,13 +550,69 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 120, 16, 40),
+                  padding: const EdgeInsets.fromLTRB(16, 170, 16, 40),
                   itemCount: displayRides.length,
                   itemBuilder: (context, index) {
                     final ride = displayRides[index];
                     return _buildFuturisticCard(ride, index);
                   },
                 ),
+
+          // Capacity Indicator
+          Positioned(
+            top: 100,
+            left: 16,
+            right: 16,
+            child: _buildCapacityIndicator(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCapacityIndicator() {
+    // Determine how many are used
+    // If total=4, cap=3 -> used=1
+    int used = DriverData.totalCapacity - DriverData.carCapacity;
+    if (used < 0) used = 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            "Capacity:",
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Draw Seats
+          ...List.generate(DriverData.totalCapacity, (index) {
+            bool isUsed = index < used;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(
+                isUsed ? Icons.person : Icons.event_seat,
+                color: isUsed ? Colors.grey[400] : const Color(0xFFFC153b),
+                size: 20,
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -409,7 +626,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFC153b).withOpacity(0.08),
+            color: const Color(0xFFFC153b).withValues(alpha: 0.08),
             blurRadius: 24,
             spreadRadius: 0,
             offset: const Offset(0, 8),
@@ -431,7 +648,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFFFC153b).withOpacity(0.3),
+                        color: const Color(0xFFFC153b).withValues(alpha: 0.3),
                         width: 2,
                       ),
                     ),
@@ -493,7 +710,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFC153b).withOpacity(0.1),
+                      color: const Color(0xFFFC153b).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -512,7 +729,9 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                           style: GoogleFonts.outfit(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFFFC153b).withOpacity(0.8),
+                            color: const Color(
+                              0xFFFC153b,
+                            ).withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -628,7 +847,9 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFFC153b).withOpacity(0.4),
+                            color: const Color(
+                              0xFFFC153b,
+                            ).withValues(alpha: 0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),

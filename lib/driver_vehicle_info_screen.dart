@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'cnic_verification_screen.dart'; // Navigates to CNIC next
+import 'package:musafirah_app/services/auth_service.dart';
+
+import 'package:musafirah_app/driver_data.dart';
 
 class DriverVehicleInfoScreen extends StatefulWidget {
   const DriverVehicleInfoScreen({super.key});
@@ -17,8 +20,10 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
   final TextEditingController _yearController = TextEditingController();
   final TextEditingController _plateController = TextEditingController();
   final TextEditingController _colorController = TextEditingController();
+  final TextEditingController _capacityController = TextEditingController();
   File? _carImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -29,7 +34,7 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
     }
   }
 
-  void _next() {
+  void _next() async {
     if (_plateController.text.isEmpty || _carImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -38,13 +43,64 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
       );
       return;
     }
-    // Navigate to CNIC Verification (Reused from existing flow)
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const CNICVerificationScreen(isDriver: true),
-      ),
-    );
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = AuthService.currentUser;
+      if (user == null) return;
+
+      // Upload image
+      debugPrint("Uploading car image...");
+      String? carImageUrl = await AuthService.uploadImage(
+        'users/${user.uid}/car_image.jpg',
+        _carImage!,
+      );
+
+      if (carImageUrl == null) throw 'Car image upload failed';
+
+      final cap = int.tryParse(_capacityController.text) ?? 4;
+      DriverData.carCapacity = cap;
+      DriverData.totalCapacity = cap;
+
+      // Save to Firestore
+      await AuthService.saveUserData(
+        uid: user.uid,
+        role: 'driver',
+        phone: user.phoneNumber ?? '',
+        extraData: {
+          'car_model': _modelController.text.trim(),
+          'car_year': _yearController.text.trim(),
+          'car_color': _colorController.text.trim(),
+          'car_number': _plateController.text.trim(),
+          'available_seats': cap,
+          'image_car_front': carImageUrl,
+          'registrationStep': 'vehicle_completed',
+        },
+      );
+
+      if (!mounted) return;
+      // Navigate to CNIC Verification (Reused from existing flow)
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const CNICVerificationScreen(isDriver: true),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -88,7 +144,11 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildLabel('Year'),
-                      _buildTextField(_yearController, '2023'),
+                      _buildTextField(
+                        _yearController,
+                        '2023',
+                        keyboardType: TextInputType.number,
+                      ),
                     ],
                   ),
                 ),
@@ -106,8 +166,33 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
             ),
 
             const SizedBox(height: 20),
-            _buildLabel('License Plate Number'),
-            _buildTextField(_plateController, 'ABC-123'),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('License Plate Number'),
+                      _buildTextField(_plateController, 'ABC-123'),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('Car Capacity'),
+                      _buildTextField(
+                        _capacityController,
+                        '4',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
 
             const SizedBox(height: 30),
             Text(
@@ -167,14 +252,18 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: Text(
-                  'Complete Registration',
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      )
+                    : Text(
+                        'Complete Registration',
+                        style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -190,9 +279,14 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String hint, {
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         hintText: hint,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

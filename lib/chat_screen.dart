@@ -40,7 +40,7 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              backgroundColor: const Color(0xFFFC153b).withOpacity(0.1),
+              backgroundColor: const Color(0xFFFC153b).withValues(alpha: 0.1),
               child: Text(
                 widget.peerName[0],
                 style: GoogleFonts.outfit(
@@ -120,7 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   offset: const Offset(0, -4),
                   blurRadius: 10,
                 ),

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:musafirah_app/driver_dashboard_screen.dart';
 import 'package:musafirah_app/passenger_dashboard_screen.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
   final String userType; // 'passenger' or 'driver'
@@ -20,7 +21,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   CountryCode? _selectedCountryCode;
   bool _isOtpSent = false;
   bool _isLoading = false;
-  String? _sentOtp; // In production, this would come from backend
+  String? _verificationId;
 
   @override
   void dispose() {
@@ -494,7 +495,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     }
   }
 
-  void _sendOtp() {
+  void _sendOtp() async {
     setState(() {
       _isLoading = true;
     });
@@ -503,34 +504,55 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     final countryCode = _selectedCountryCode?.dialCode ?? '+92';
     final fullPhoneNumber = '$countryCode$phoneNumber';
 
-    // Simulate API call to send OTP
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
+    await AuthService.verifyPhoneNumber(
+      phoneNumber: fullPhoneNumber,
+      onCodeSent: (verificationId) {
+        if (!mounted) return;
+        setState(() {
+          _verificationId = verificationId;
+          _isOtpSent = true;
+          _isLoading = false;
+        });
 
-      // Generate a random 6-digit OTP (in production, this comes from backend)
-      _sentOtp = (100000 + (DateTime.now().millisecondsSinceEpoch % 900000))
-          .toString();
+        final otpMessage = AuthService.useDemoMode
+            ? 'OTP sent to $fullPhoneNumber (Demo: ${AuthService.demoGeneratedOtp})'
+            : 'OTP sent to $fullPhoneNumber';
 
-      setState(() {
-        _isOtpSent = true;
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'OTP sent to $fullPhoneNumber\n(Demo OTP: $_sentOtp)',
-            style: GoogleFonts.inter(),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(otpMessage, style: GoogleFonts.inter()),
+            duration: const Duration(seconds: 8),
+            backgroundColor: Colors.green,
           ),
-          duration: const Duration(seconds: 4),
-          backgroundColor: Colors.green,
-        ),
-      );
-    });
+        );
+      },
+      onFailed: (e) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Verification failed: ${e.message}',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+    );
   }
 
-  void _verifyOtp() {
+  void _verifyOtp() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_verificationId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please request OTP first')));
       return;
     }
 
@@ -538,47 +560,66 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       _isLoading = true;
     });
 
-    final enteredOtp = _otpController.text.trim();
+    final smsCode = _otpController.text.trim();
 
-    // Simulate API call to verify OTP
-    Future.delayed(const Duration(seconds: 1), () {
-      if (!mounted) return;
+    final userCredential = await AuthService.signInWithOTP(
+      verificationId: _verificationId!,
+      smsCode: smsCode,
+    );
 
-      // In production, verify with backend
-      if (enteredOtp == _sentOtp || enteredOtp == '123456') {
-        // OTP verified successfully
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login successful!', style: GoogleFonts.inter()),
-            backgroundColor: Colors.green,
-          ),
-        );
+    if (!mounted) return;
 
-        // Navigate to appropriate dashboard
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => widget.userType == 'passenger'
-                ? const PassengerDashboardScreen()
-                : const DriverDashboardScreen(),
-          ),
-          (route) => false,
-        );
+    if (userCredential != null && userCredential.user != null) {
+      // Login successful
+      final uid = userCredential.user!.uid;
+      final phone =
+          userCredential.user!.phoneNumber ?? AuthService.demoPhone ?? '';
+
+      // Check if user exists in Firestore, if not create basic profile
+      if (widget.userType == 'driver') {
+        await AuthService.initializeDriverData(uid: uid, phone: phone);
       } else {
-        setState(() {
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Invalid OTP. Please try again.',
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        final userDoc = await AuthService.getUserData(uid);
+        if (userDoc == null || !userDoc.exists) {
+          await AuthService.saveUserData(
+            uid: uid,
+            role: widget.userType,
+            phone: phone,
+          );
+        }
       }
-    });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login successful!', style: GoogleFonts.inter()),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Navigate to appropriate dashboard
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => widget.userType == 'passenger'
+              ? const PassengerDashboardScreen()
+              : const DriverDashboardScreen(),
+        ),
+        (route) => false,
+      );
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Invalid OTP. Please try again.',
+            style: GoogleFonts.inter(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _resendOtp() {

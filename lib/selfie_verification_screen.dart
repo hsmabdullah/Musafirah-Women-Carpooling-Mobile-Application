@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:camera/camera.dart';
-import 'package:musafirah_app/payment_screen.dart';
+import 'passenger_dashboard_screen.dart';
 import 'driver_dashboard_screen.dart';
 import 'dart:io';
+import 'package:musafirah_app/services/auth_service.dart';
 
 class SelfieVerificationScreen extends StatefulWidget {
   final bool isDriver;
@@ -175,22 +176,52 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
       _isLoading = true;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final user = AuthService.currentUser;
+      if (user == null) return;
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      // Upload selfie
+      debugPrint("Uploading selfie...");
+      String? selfieUrl = await AuthService.uploadImage(
+        'users/${user.uid}/selfie.jpg',
+        _selfieImage!,
+      );
 
+      if (selfieUrl == null) throw 'Selfie upload failed';
+
+      // If we're here, selfieUrl is NOT null because of the throw above
+      await AuthService.saveUserData(
+        uid: user.uid,
+        role: widget.isDriver ? 'driver' : 'passenger',
+        phone: user.phoneNumber ?? '',
+        extraData: {
+          'image_selfie': selfieUrl,
+          'registrationStep': 'completed',
+          'isVerified': false, // Admin needs to verify
+        },
+      );
+
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (context) => widget.isDriver
               ? const DriverDashboardScreen()
-              : const PaymentScreen(),
+              : const PassengerDashboardScreen(),
         ),
         (route) => false,
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -239,120 +270,119 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
           children: [
             // Main content - everything fits on one screen, no scrolling
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(height: screenHeight * 0.01),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: screenHeight * 0.01),
 
-                    // Introduction Text - Centered with adjusted size
-                    Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: horizontalPadding * 0.3,
-                        ),
-                        child: Text(
-                          'Please take a clear selfie to verify your identity. This helps us ensure the safety of our community.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: fontSizeBody * 1.05,
-                            color: Colors.black87,
-                            height: 1.4,
+                      // Introduction Text
+                      Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding * 0.3,
+                          ),
+                          child: Text(
+                            'Please take a clear selfie to verify your identity. This helps us ensure the safety of our community.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeBody * 1.05,
+                              color: Colors.black87,
+                              height: 1.4,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: screenHeight * 0.015),
+                      SizedBox(height: screenHeight * 0.02),
 
-                    // Camera Preview or Image Display Card
-                    Expanded(
-                      flex: 4,
-                      child: Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(horizontalPadding * 0.5),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(cardRadius),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withValues(alpha: 0.1),
-                              spreadRadius: 1,
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(cardRadius * 0.8),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: double.infinity,
-                                color: Colors.grey[200],
-                                child:
-                                    _showCameraPreview && _isCameraInitialized
-                                    ? Stack(
-                                        children: [
-                                          Positioned.fill(
-                                            child: CameraPreview(
-                                              _cameraController!,
-                                            ),
-                                          ),
-                                          Positioned.fill(
-                                            child: CustomPaint(
-                                              painter: CircleOverlayPainter(),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : _selfieImage != null
-                                    ? Image.file(
-                                        _selfieImage!,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        color: Colors.grey[100],
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.face_outlined,
-                                              size: (screenHeight * 0.12).clamp(
-                                                60.0,
-                                                100.0,
-                                              ),
-                                              color: Colors.grey[400],
-                                            ),
-                                            SizedBox(
-                                              height: screenHeight * 0.008,
-                                            ),
-                                            Text(
-                                              'Tap below to take a selfie',
-                                              textAlign: TextAlign.center,
-                                              style: GoogleFonts.inter(
-                                                fontSize: fontSizeBody * 0.9,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                      // Camera Preview or Image Display Card
+                      SizedBox(
+                        height: screenHeight * 0.4,
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(horizontalPadding * 0.5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(cardRadius),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withValues(alpha: 0.1),
+                                spreadRadius: 1,
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              cardRadius * 0.8,
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  color: Colors.grey[200],
+                                  child:
+                                      _showCameraPreview && _isCameraInitialized
+                                      ? Stack(
+                                          children: [
+                                            Positioned.fill(
+                                              child: CameraPreview(
+                                                _cameraController!,
+                                              ),
+                                            ),
+                                            Positioned.fill(
+                                              child: CustomPaint(
+                                                painter: CircleOverlayPainter(),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : _selfieImage != null
+                                      ? Image.file(
+                                          _selfieImage!,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Container(
+                                          color: Colors.grey[100],
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.face_outlined,
+                                                size: (screenHeight * 0.12)
+                                                    .clamp(60.0, 100.0),
+                                                color: Colors.grey[400],
+                                              ),
+                                              SizedBox(
+                                                height: screenHeight * 0.008,
+                                              ),
+                                              Text(
+                                                'Tap below to take a selfie',
+                                                textAlign: TextAlign.center,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: fontSizeBody * 0.9,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: screenHeight * 0.01),
+                      SizedBox(height: screenHeight * 0.025),
 
-                    // Tips Section - Compact
-                    Expanded(
-                      flex: 3,
-                      child: Column(
+                      // Tips Section
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -364,54 +394,53 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
                               color: const Color(0xFFFC153b),
                             ),
                           ),
-                          SizedBox(height: screenHeight * 0.006),
+                          SizedBox(height: screenHeight * 0.01),
 
-                          // Tip Items - Compact spacing
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                _buildTipItem(
-                                  context,
-                                  icon: Icons.help_outline,
-                                  text:
-                                      'Ensure good lighting, avoid shadows on your face.',
-                                  screenWidth: screenWidth,
-                                  fontSizeBody: fontSizeBody,
-                                ),
-                                SizedBox(height: screenHeight * 0.004),
-                                _buildTipItem(
-                                  context,
-                                  icon: Icons.check_circle_outline,
-                                  text:
-                                      'Look directly at the camera with a neutral expression.',
-                                  screenWidth: screenWidth,
-                                  fontSizeBody: fontSizeBody,
-                                ),
-                                SizedBox(height: screenHeight * 0.004),
-                                _buildTipItem(
-                                  context,
-                                  icon: Icons.check_circle_outline,
-                                  text: 'Remove any glasses, hats, or masks.',
-                                  screenWidth: screenWidth,
-                                  fontSizeBody: fontSizeBody,
-                                ),
-                                SizedBox(height: screenHeight * 0.004),
-                                _buildTipItem(
-                                  context,
-                                  icon: Icons.check_circle_outline,
-                                  text:
-                                      'Make sure your entire face is visible and in focus.',
-                                  screenWidth: screenWidth,
-                                  fontSizeBody: fontSizeBody,
-                                ),
-                              ],
-                            ),
+                          // Tip Items
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              _buildTipItem(
+                                context,
+                                icon: Icons.help_outline,
+                                text:
+                                    'Ensure good lighting, avoid shadows on your face.',
+                                screenWidth: screenWidth,
+                                fontSizeBody: fontSizeBody,
+                              ),
+                              SizedBox(height: screenHeight * 0.008),
+                              _buildTipItem(
+                                context,
+                                icon: Icons.check_circle_outline,
+                                text:
+                                    'Look directly at the camera with a neutral expression.',
+                                screenWidth: screenWidth,
+                                fontSizeBody: fontSizeBody,
+                              ),
+                              SizedBox(height: screenHeight * 0.008),
+                              _buildTipItem(
+                                context,
+                                icon: Icons.check_circle_outline,
+                                text: 'Remove any glasses, hats, or masks.',
+                                screenWidth: screenWidth,
+                                fontSizeBody: fontSizeBody,
+                              ),
+                              SizedBox(height: screenHeight * 0.008),
+                              _buildTipItem(
+                                context,
+                                icon: Icons.check_circle_outline,
+                                text:
+                                    'Make sure your entire face is visible and in focus.',
+                                screenWidth: screenWidth,
+                                fontSizeBody: fontSizeBody,
+                              ),
+                              SizedBox(height: screenHeight * 0.02),
+                            ],
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
