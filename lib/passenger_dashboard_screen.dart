@@ -4,11 +4,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:musafirah_app/services/osm_service.dart';
-import 'package:musafirah_app/ride_booking_screen.dart';
 import 'package:musafirah_app/ride_confirmed_screen.dart';
+import 'passenger_ride_selection_screen.dart';
 import 'package:musafirah_app/wallet_history_screen.dart';
 import 'package:musafirah_app/rider_profile_screen.dart';
-import 'package:musafirah_app/utils/id_utils.dart';
+import 'package:musafirah_app/passenger_live_tracking_screen.dart';
 
 class PassengerDashboardScreen extends StatefulWidget {
   const PassengerDashboardScreen({super.key});
@@ -33,64 +33,12 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
 
   final List<Marker> _markers = [];
   final List<Polyline> _polylines = [];
+
   List<Map<String, dynamic>> _popularDestinations = [];
   final ScrollController _popularDestinationsScrollController =
       ScrollController();
-  final List<DriverProfile> _driverProfiles = [
-    DriverProfile(
-      id: 'driver_sana_ali',
-      name: 'Sana Ali',
-      phone: '+923001112233',
-      rating: '4.9',
-      seats: '2/3 seats',
-      vehicleModel: 'Toyota Corolla',
-      vehicleColor: 'White',
-      vehiclePlate: 'LEB-4521',
-      avatarAsset: 'Assets/icons/women1.jpeg',
-      initialEta: '6 min',
-      initialPosition: const LatLng(24.8740, 67.0320),
-    ),
-    DriverProfile(
-      id: 'driver_hina_khan',
-      name: 'Hina Khan',
-      phone: '+923008889900',
-      rating: '5.0',
-      seats: '1/3 seats',
-      vehicleModel: 'Honda City',
-      vehicleColor: 'Silver',
-      vehiclePlate: 'KHI-6234',
-      avatarAsset: 'Assets/icons/pakistani.jpg',
-      initialEta: '5 min',
-      initialPosition: const LatLng(24.8705, 67.0450),
-    ),
-    DriverProfile(
-      id: 'driver_maira_ahmed',
-      name: 'Maira Ahmed',
-      phone: '+923021234567',
-      rating: '4.8',
-      seats: '3/3 seats',
-      vehicleModel: 'Suzuki Swift',
-      vehicleColor: 'Red',
-      vehiclePlate: 'AJK-9087',
-      avatarAsset: 'Assets/icons/woman_2.jpg',
-      initialEta: '7 min',
-      initialPosition: const LatLng(24.8785, 67.0210),
-    ),
-    DriverProfile(
-      id: 'driver_nimra_yousuf',
-      name: 'Nimra Yousuf',
-      phone: '+923335551234',
-      rating: '4.7',
-      seats: '2/3 seats',
-      vehicleModel: 'Toyota Vitz',
-      vehicleColor: 'Blue',
-      vehiclePlate: 'BWP-3210',
-      avatarAsset: 'Assets/icons/women1.jpeg',
-      initialEta: '8 min',
-      initialPosition: const LatLng(24.8665, 67.0550),
-    ),
-  ];
-  int _driverProfileIndex = 0;
+
+  Map<String, dynamic>? _activeRideDetails;
 
   @override
   void initState() {
@@ -325,6 +273,18 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     }
   }
 
+  Future<void> _selectDestinationOnMap() async {
+    // Placeholder for map selection functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Select on Map feature coming soon.',
+          style: GoogleFonts.inter(),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleManualLocationSearch({
     required bool isOrigin,
     required String query,
@@ -525,41 +485,29 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
 
     // Use calculated fare or default
     final fareToUse = _estimatedFare > 0 ? _estimatedFare : 550.0;
-    final driver =
-        _driverProfiles[_driverProfileIndex % _driverProfiles.length];
-    _driverProfileIndex = (_driverProfileIndex + 1) % _driverProfiles.length;
-    final generatedRideId = IdUtils.generateRideId();
     const userId = 'passenger_demo_user';
 
-    // Navigate to ride booking screen immediately
+    // Navigate to ride selection screen
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RideBookingScreen(
+        builder: (context) => PassengerRideSelectionScreen(
           pickupLocation: _origin!,
           dropoffLocation: _destination!,
           pickupAddress: _originText.replaceAll('From: ', ''),
           dropoffAddress: _destinationText.replaceAll('To: ', ''),
           estimatedFare: fareToUse,
-          rideId: generatedRideId,
-          driverId: driver.id,
-          driverName: driver.name,
-          driverPhone: driver.phone,
           userId: userId,
-          initialDriverLocation: driver.initialPosition,
-          driverAvatarAsset: driver.avatarAsset,
-          driverRating: driver.rating,
-          driverTrips: driver.seats,
-          vehicleModel: driver.vehicleModel,
-          vehicleColor: driver.vehicleColor,
-          vehiclePlate: driver.vehiclePlate,
-          initialEta: driver.initialEta,
         ),
       ),
     ).then((rideResult) async {
       if (!mounted) return;
 
       if (rideResult != null) {
+        setState(() {
+          _activeRideDetails = rideResult;
+        });
+
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -706,152 +654,334 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                   ],
                 ),
 
-                // Ride Input Card (overlaying map at bottom)
-                Positioned(
-                  bottom: screenHeight * 0.02,
-                  left: horizontalPadding,
-                  right: horizontalPadding,
-                  child: Container(
-                    padding: EdgeInsets.all(horizontalPadding * 0.8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Origin Field
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _originController,
-                                keyboardType: TextInputType.streetAddress,
-                                textInputAction: TextInputAction.search,
-                                onTap: () {
-                                  _originController.selection = TextSelection(
-                                    baseOffset: 0,
-                                    extentOffset: _originController.text.length,
-                                  );
-                                },
-                                onSubmitted: (value) =>
-                                    _handleManualLocationSearch(
-                                      isOrigin: true,
-                                      query: value,
+                // Ride Input Card or Active Ride Card
+                _activeRideDetails != null
+                    ? Positioned(
+                        bottom: screenHeight * 0.02,
+                        left: horizontalPadding,
+                        right: horizontalPadding,
+                        child: Container(
+                          padding: EdgeInsets.all(horizontalPadding),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFC153b).withOpacity(0.1),
+                                blurRadius: 15,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFFC153b,
+                                      ).withOpacity(0.1),
+                                      shape: BoxShape.circle,
                                     ),
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: _originText,
-                                  prefixIcon: Icon(
-                                    Icons.search,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                style: GoogleFonts.inter(
-                                  fontSize: fontSizeBody,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Use current location',
-                              icon: const Icon(
-                                Icons.my_location,
-                                color: Color(0xFFFC153b),
-                              ),
-                              onPressed: _useCurrentLocation,
-                            ),
-                            IconButton(
-                              tooltip: 'Browse saved locations',
-                              icon: const Icon(
-                                Icons.list_alt,
-                                color: Color(0xFFFC153b),
-                              ),
-                              onPressed: _selectOrigin,
-                            ),
-                          ],
-                        ),
-                        Divider(color: Colors.grey[300], height: 1),
-                        // Destination Field
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _destinationController,
-                                keyboardType: TextInputType.streetAddress,
-                                textInputAction: TextInputAction.search,
-                                onTap: () {
-                                  _destinationController.selection =
-                                      TextSelection(
-                                        baseOffset: 0,
-                                        extentOffset:
-                                            _destinationController.text.length,
-                                      );
-                                },
-                                onSubmitted: (value) =>
-                                    _handleManualLocationSearch(
-                                      isOrigin: false,
-                                      query: value,
+                                    child: const Icon(
+                                      Icons.directions_car,
+                                      color: Color(0xFFFC153b),
                                     ),
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: 'To: Enter destination',
-                                  prefixIcon: Icon(
-                                    Icons.location_on,
-                                    color: Color(0xFFFC153b),
                                   ),
-                                ),
-                                style: GoogleFonts.inter(
-                                  fontSize: fontSizeBody,
-                                  color: Colors.black87,
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Ride in Progress",
+                                          style: GoogleFonts.outfit(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: const Color(0xFFFC153b),
+                                          ),
+                                        ),
+                                        Text(
+                                          "${_activeRideDetails!['driverName']} is arriving",
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 14,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            IconButton(
-                              tooltip: 'Browse saved destinations',
-                              icon: const Icon(
-                                Icons.list_alt,
-                                color: Color(0xFFFC153b),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => PassengerLiveTrackingScreen(
+                                              rideId:
+                                                  _activeRideDetails!['rideId'] ??
+                                                  '',
+                                              driverName:
+                                                  _activeRideDetails!['driverName'] ??
+                                                  '',
+                                              driverId:
+                                                  _activeRideDetails!['driverId'] ??
+                                                  '',
+                                              driverPhone:
+                                                  _activeRideDetails!['driverPhone'] ??
+                                                  '',
+                                              userId:
+                                                  _activeRideDetails!['userId'] ??
+                                                  '',
+                                              initialDriverPosition:
+                                                  _activeRideDetails!['initialDriverPosition'],
+                                              dropoffPosition:
+                                                  _activeRideDetails!['dropoffPosition'],
+                                              initialPassengerPosition:
+                                                  _activeRideDetails!['passengerPosition'],
+                                              driverAvatarAsset:
+                                                  _activeRideDetails!['driverAvatarAsset'] ??
+                                                  '',
+                                              pickupAddress:
+                                                  _activeRideDetails!['pickupAddress'] ??
+                                                  '',
+                                              dropoffAddress:
+                                                  _activeRideDetails!['dropoffAddress'] ??
+                                                  '',
+                                              initialEta:
+                                                  _activeRideDetails!['eta'] ??
+                                                  '',
+                                              rideFare:
+                                                  _activeRideDetails!['fare'] ??
+                                                  0.0,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFFFC153b,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        "Track Ride",
+                                        style: GoogleFonts.outfit(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _activeRideDetails = null;
+                                        _originController.clear();
+                                        _destinationController.clear();
+                                        _origin = null;
+                                        _destination = null;
+                                        _markers.clear();
+                                        _polylines.clear();
+                                        _estimatedFare = 0.0;
+                                      });
+                                    },
+                                    child: Text(
+                                      "End",
+                                      style: GoogleFonts.outfit(
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              onPressed: _selectDestination,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: metrics.cardFieldSpacing),
-                        // Find Ride Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: buttonHeight * 0.85,
-                          child: ElevatedButton(
-                            onPressed: _onFindRide,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFC153b),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              'Find Ride',
-                              style: GoogleFonts.inter(
-                                fontSize: fontSizeButton,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      )
+                    : Positioned(
+                        bottom: screenHeight * 0.02,
+                        left: horizontalPadding,
+                        right: horizontalPadding,
+                        child: Container(
+                          padding: EdgeInsets.all(horizontalPadding * 0.8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Origin Field
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _originController,
+                                      keyboardType: TextInputType.streetAddress,
+                                      textInputAction: TextInputAction.search,
+                                      onTap: () {
+                                        _originController.selection =
+                                            TextSelection(
+                                              baseOffset: 0,
+                                              extentOffset:
+                                                  _originController.text.length,
+                                            );
+                                      },
+                                      onSubmitted: (value) =>
+                                          _handleManualLocationSearch(
+                                            isOrigin: true,
+                                            query: value,
+                                          ),
+                                      decoration: InputDecoration(
+                                        border: InputBorder.none,
+                                        hintText: _originText,
+                                        prefixIcon: Icon(
+                                          Icons.search,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      style: GoogleFonts.inter(
+                                        fontSize: fontSizeBody,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Use current location',
+                                    icon: const Icon(
+                                      Icons.my_location,
+                                      color: Color(0xFFFC153b),
+                                    ),
+                                    onPressed: _useCurrentLocation,
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Browse saved locations',
+                                    icon: const Icon(
+                                      Icons.list_alt,
+                                      color: Color(0xFFFC153b),
+                                    ),
+                                    onPressed: _selectOrigin,
+                                  ),
+                                ],
+                              ),
+                              Divider(color: Colors.grey[300], height: 1),
+                              // Destination Field
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _destinationController,
+                                      keyboardType: TextInputType.streetAddress,
+                                      textInputAction: TextInputAction.search,
+                                      onTap: () {
+                                        _destinationController
+                                            .selection = TextSelection(
+                                          baseOffset: 0,
+                                          extentOffset: _destinationController
+                                              .text
+                                              .length,
+                                        );
+                                      },
+                                      onSubmitted: (value) =>
+                                          _handleManualLocationSearch(
+                                            isOrigin: false,
+                                            query: value,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        border: InputBorder.none,
+                                        hintText: 'To: Enter destination',
+                                        prefixIcon: Icon(
+                                          Icons.location_on,
+                                          color: Color(0xFFFC153b),
+                                        ),
+                                      ),
+                                      style: GoogleFonts.inter(
+                                        fontSize: fontSizeBody,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Search destination',
+                                    icon: const Icon(
+                                      Icons.arrow_forward,
+                                      color: Color(0xFFFC153b),
+                                    ),
+                                    onPressed: () {
+                                      _handleManualLocationSearch(
+                                        isOrigin: false,
+                                        query: _destinationController.text,
+                                      );
+                                    },
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Browse saved destinations',
+                                    icon: const Icon(
+                                      Icons.list_alt,
+                                      color: Color(0xFFFC153b),
+                                    ),
+                                    onPressed: _selectDestination,
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Select on Map',
+                                    icon: const Icon(
+                                      Icons.map,
+                                      color: Color(0xFFFC153b),
+                                    ),
+                                    onPressed: _selectDestinationOnMap,
+                                  ),
+                                ],
+                              ),
+
+                              SizedBox(height: metrics.cardFieldSpacing),
+                              // Find Ride Button
+                              SizedBox(
+                                width: double.infinity,
+                                height: buttonHeight * 0.85,
+                                child: ElevatedButton(
+                                  onPressed: _onFindRide,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFC153b),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    'Find Ride',
+                                    style: GoogleFonts.inter(
+                                      fontSize: fontSizeButton,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
               ],
             ),
           ),
@@ -1381,32 +1511,4 @@ class _DestinationSearchDialogState extends State<_DestinationSearchDialog> {
       ),
     );
   }
-}
-
-class DriverProfile {
-  const DriverProfile({
-    required this.id,
-    required this.name,
-    required this.phone,
-    required this.rating,
-    required this.seats,
-    required this.vehicleModel,
-    required this.vehicleColor,
-    required this.vehiclePlate,
-    required this.avatarAsset,
-    required this.initialEta,
-    required this.initialPosition,
-  });
-
-  final String id;
-  final String name;
-  final String phone;
-  final String rating;
-  final String seats;
-  final String vehicleModel;
-  final String vehicleColor;
-  final String vehiclePlate;
-  final String avatarAsset;
-  final String initialEta;
-  final LatLng initialPosition;
 }

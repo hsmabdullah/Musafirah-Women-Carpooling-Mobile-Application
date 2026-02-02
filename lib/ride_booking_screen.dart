@@ -163,6 +163,10 @@ class _RideBookingScreenState extends State<RideBookingScreen> {
       'fare': widget.estimatedFare,
       'pickupAddress': widget.pickupAddress,
       'dropoffAddress': widget.dropoffAddress,
+      'initialDriverPosition':
+          widget.initialDriverLocation ?? widget.pickupLocation,
+      'dropoffPosition': widget.dropoffLocation,
+      'passengerPosition': widget.pickupLocation,
       'initialDriverLat':
           (widget.initialDriverLocation ?? widget.pickupLocation).latitude,
       'initialDriverLng':

@@ -332,7 +332,7 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
         setState(() => _bottomNavIndex = index);
         switch (index) {
           case 0:
-            Navigator.pop(context);
+            Navigator.of(context).popUntil((route) => route.isFirst);
             break;
           case 1:
             break;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/wallet_repository.dart';
-import 'package:musafirah_app/passenger_dashboard_screen.dart';
+
 import 'package:musafirah_app/wallet_history_screen.dart';
 import 'package:musafirah_app/user_choice.dart';
 
@@ -93,9 +93,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               image: DecorationImage(
-                image: AssetImage(
-                  'Assets/icons/women1.jpeg',
-                ),
+                image: AssetImage('Assets/icons/women1.jpeg'),
                 fit: BoxFit.cover,
               ),
             ),
@@ -199,10 +197,14 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
           ),
         ),
         SizedBox(height: metrics.smallSpacing),
-        ...allRides.take(4).map((ride) => Padding(
-              padding: EdgeInsets.only(bottom: metrics.smallSpacing),
-              child: _RideHistoryCard(ride: ride, metrics: metrics),
-            )),
+        ...allRides
+            .take(4)
+            .map(
+              (ride) => Padding(
+                padding: EdgeInsets.only(bottom: metrics.smallSpacing),
+                child: _RideHistoryCard(ride: ride, metrics: metrics),
+              ),
+            ),
       ],
     );
   }
@@ -439,10 +441,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(
-              'Logout',
-              style: GoogleFonts.inter(),
-            ),
+            title: Text('Logout', style: GoogleFonts.inter()),
             content: Text(
               'Are you sure you want to logout?',
               style: GoogleFonts.inter(),
@@ -450,26 +449,19 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Cancel',
-                  style: GoogleFonts.inter(),
-                ),
+                child: Text('Cancel', style: GoogleFonts.inter()),
               ),
               TextButton(
                 onPressed: () {
                   Navigator.pop(context); // Close dialog
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const UserChoice(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const UserChoice()),
                     (route) => false, // Remove all previous routes
                   );
                 },
                 child: Text(
                   'Logout',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFFFC153b),
-                  ),
+                  style: GoogleFonts.inter(color: const Color(0xFFFC153b)),
                 ),
               ),
             ],
@@ -517,19 +509,12 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
         setState(() => _bottomNavIndex = index);
         switch (index) {
           case 0:
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) => const PassengerDashboardScreen(),
-              ),
-              (route) => false,
-            );
+            Navigator.of(context).popUntil((route) => route.isFirst);
             break;
           case 1:
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const WalletHistoryScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const WalletHistoryScreen()),
             ).then((_) {
               if (mounted) {
                 setState(() => _bottomNavIndex = 2);
@@ -563,10 +548,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
 }
 
 class _RideHistoryCard extends StatelessWidget {
-  const _RideHistoryCard({
-    required this.ride,
-    required this.metrics,
-  });
+  const _RideHistoryCard({required this.ride, required this.metrics});
 
   final RideHistoryEntry ride;
   final _ProfileMetrics metrics;
@@ -712,11 +694,7 @@ class _AccountActionTile extends StatelessWidget {
         padding: EdgeInsets.all(metrics.cardPadding),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFFFC153b),
-              size: metrics.iconSize,
-            ),
+            Icon(icon, color: const Color(0xFFFC153b), size: metrics.iconSize),
             SizedBox(width: metrics.smallSpacing),
             Text(
               label,
@@ -726,10 +704,7 @@ class _AccountActionTile extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400]),
           ],
         ),
       ),
@@ -798,4 +773,3 @@ class _ProfileMetrics {
     );
   }
 }
-

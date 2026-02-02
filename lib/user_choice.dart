@@ -334,10 +334,14 @@ class _UserChoiceState extends State<UserChoice>
                   ),
                   child: ClipOval(
                     child: Transform.scale(
-                      scale: 1.25,
-                      child: Image.asset(
-                        'Assets/logos/musafirah_logo_final.jpg',
-                        fit: BoxFit.cover,
+                      scale: 1.3,
+                      alignment: Alignment.center,
+                      child: Transform.translate(
+                        offset: const Offset(0, -12), // Move slightly up
+                        child: Image.asset(
+                          'Assets/logos/musafirah_logo_final.jpg',
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),

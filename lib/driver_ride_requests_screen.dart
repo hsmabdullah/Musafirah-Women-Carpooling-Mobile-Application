@@ -164,7 +164,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
     double rating,
   ) {
     final double distKm = _distance.as(LengthUnit.Kilometer, pick, drop);
-    final double price = distKm * 200; // Rs 200 per km
+    final double price = distKm * 25; // Rs 25 per km
 
     return _RideRequest(
       name: name,
@@ -560,7 +560,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
 
           // Capacity Indicator
           Positioned(
-            top: 100,
+            top: 120,
             left: 16,
             right: 16,
             child: _buildCapacityIndicator(),

@@ -8,10 +8,7 @@
 
 import 'dart:async';
 import 'dart:convert';
-<<<<<<< HEAD
-=======
 import 'package:musafirah_app/models/emergency_contact.dart';
->>>>>>> origin/Shayan
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -27,10 +24,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'passenger_chat_screen.dart';
 import 'payment_screen.dart';
-<<<<<<< HEAD
-=======
 import 'services/emergency_contact_service.dart';
->>>>>>> origin/Shayan
 
 const String _socketBaseUrl = 'wss://api.example.com/rides';
 const String _restBaseUrl = 'https://api.example.com/api/rides';
@@ -416,8 +410,6 @@ class _PassengerLiveTrackingScreenState
 
   Future<void> _sendSos() async {
     if (_isSosSending) return;
-<<<<<<< HEAD
-=======
 
     // Get emergency contacts
     final contacts = await EmergencyContactService.getEmergencyContacts();
@@ -476,7 +468,6 @@ class _PassengerLiveTrackingScreenState
     }
 
     // Send SOS to backend
->>>>>>> origin/Shayan
     if (mounted) setState(() => _isSosSending = true);
     try {
       final uri = Uri.parse('$_restBaseUrl/${widget.rideId}/sos');
@@ -487,8 +478,6 @@ class _PassengerLiveTrackingScreenState
           'latitude': _passengerLatLng?.latitude,
           'longitude': _passengerLatLng?.longitude,
         },
-<<<<<<< HEAD
-=======
         'emergencyContacts': contacts
             .map<Map<String, String>>(
               (EmergencyContact c) => {
@@ -498,7 +487,6 @@ class _PassengerLiveTrackingScreenState
               },
             )
             .toList(),
->>>>>>> origin/Shayan
       };
       final response = await http.post(
         uri,
@@ -508,14 +496,10 @@ class _PassengerLiveTrackingScreenState
       if (response.statusCode == 200 || response.statusCode == 204) {
         if (mounted) setState(() => _isSosSent = true);
         _showSnack('SOS alert sent to control room.');
-<<<<<<< HEAD
-        await launchUrlString('tel:$_emergencyNumber');
-=======
         // Also call emergency number if contacts weren't available
         if (contacts.isEmpty) {
           await launchUrlString('tel:$_emergencyNumber');
         }
->>>>>>> origin/Shayan
       } else {
         _showSnack('Unable to send SOS. Please try again.');
       }
@@ -665,11 +649,7 @@ class _PassengerLiveTrackingScreenState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-<<<<<<< HEAD
-                      widget.driverName,
-=======
                       'Driver ${widget.driverName}',
->>>>>>> origin/Shayan
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w700,
                         fontSize: metrics.cardTitleFont,
@@ -677,10 +657,7 @@ class _PassengerLiveTrackingScreenState
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/Shayan
                     SizedBox(height: metrics.smallSpacing / 2),
                     Text(
                       'ETA: ${_etaText == '--' ? (widget.initialEta ?? '--') : _etaText}',
@@ -1052,10 +1029,6 @@ class _PassengerLiveTrackingScreenState
                   rideId: widget.rideId,
                   pickupAddress: widget.pickupAddress ?? 'Pickup location',
                   dropoffAddress: widget.dropoffAddress ?? 'Drop-off location',
-<<<<<<< HEAD
-                  driverName: widget.driverName,
-=======
->>>>>>> origin/Shayan
                 ),
               ),
             );
