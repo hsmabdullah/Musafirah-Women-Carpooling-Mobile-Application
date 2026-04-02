@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:musafirah_app/services/database_service.dart';
 import 'package:musafirah_app/wallet_repository.dart';
-
 import 'package:musafirah_app/wallet_history_screen.dart';
+import 'package:musafirah_app/screens/edit_profile_screen.dart';
+import 'package:musafirah_app/screens/support_screen.dart';
+import 'package:musafirah_app/screens/privacy_security_screen.dart';
 import 'package:musafirah_app/user_choice.dart';
+
+const _kRed = Color(0xFFFC153B);
+const _kRedDark = Color(0xFFD4002A);
+const _kBg = Color(0xFFF1F4F8);
+const _kCard = Colors.white;
+const _kText = Color(0xFF0F172A);
+const _kSubText = Color(0xFF64748B);
 
 class RiderProfileScreen extends StatefulWidget {
   const RiderProfileScreen({super.key});
@@ -13,57 +24,211 @@ class RiderProfileScreen extends StatefulWidget {
 }
 
 class _RiderProfileScreenState extends State<RiderProfileScreen> {
-  int _bottomNavIndex = 2; // Profile is selected
+  int _navIndex = 2;
+  Map<String, dynamic>? _userData;
+  List<Map<String, dynamic>> _rideHistory = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final data = await DatabaseService.getUserData(user.uid, 'Passengers');
+      final rides = await DatabaseService.getPassengerRides(user.uid);
+      if (mounted) {
+        setState(() {
+          _userData = data;
+          _rideHistory = rides;
+          _isLoading = false;
+        });
+      }
+    } else {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String get _name => _userData?['name'] ?? 'Rider';
+  String get _phone => _userData?['phone'] ?? '';
+  double get _rating => (_userData?['rating'] as num?)?.toDouble() ?? 0.0;
+  int get _totalRides => (_userData?['totalRides'] as int?) ?? 0;
+  String get _profileImageUrl => _userData?['profileImageUrl'] ?? '';
 
   @override
   Widget build(BuildContext context) {
-    final metrics = _ProfileMetrics.fromContext(context);
+    final size = MediaQuery.of(context).size;
+    final isTablet = size.width > 600;
+
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: _kBg,
+        body: Center(child: CircularProgressIndicator(color: _kRed)),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFC153b),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Profile',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: metrics.appBarFont,
+      backgroundColor: _kBg,
+      body: Column(
+        children: [
+          _buildHeroHeader(context),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                isTablet ? 32 : 16,
+                20,
+                isTablet ? 32 : 16,
+                16,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildStatsRow(),
+                  const SizedBox(height: 20),
+                  _buildSectionLabel('Ride History'),
+                  const SizedBox(height: 10),
+                  _buildRideHistory(),
+                  const SizedBox(height: 20),
+                  _buildSectionLabel('Wallet & Payments'),
+                  const SizedBox(height: 10),
+                  _buildWalletCard(),
+                  const SizedBox(height: 20),
+                  _buildSectionLabel('Account'),
+                  const SizedBox(height: 10),
+                  _buildAccountActions(),
+                  const SizedBox(height: 24),
+                  _buildLogoutButton(context),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
           ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {},
-          ),
+          _buildBottomNav(context),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(metrics),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: metrics.horizontalPadding),
+    );
+  }
+
+  Widget _buildHeroHeader(BuildContext context) {
+    final ratingStr = _rating > 0 ? _rating.toStringAsFixed(1) : 'New';
+    final memberSince = _userData?['createdAt'] != null
+        ? 'Member'
+        : 'Trusted Rider';
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kRed, _kRedDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: metrics.sectionSpacing),
-              _buildProfileCard(metrics),
-              SizedBox(height: metrics.sectionSpacing),
-              _buildRideHistorySection(metrics),
-              SizedBox(height: metrics.sectionSpacing),
-              _buildPaymentMethodSection(metrics),
-              SizedBox(height: metrics.sectionSpacing),
-              _buildWalletBalanceSection(metrics),
-              SizedBox(height: metrics.sectionSpacing),
-              _buildAccountActionsSection(metrics),
-              SizedBox(height: metrics.sectionSpacing * 1.5),
-              _buildLogoutButton(metrics),
-              SizedBox(height: metrics.sectionSpacing),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  Text('My Profile',
+                      style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  const SizedBox(width: 40),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildAvatar(),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _name,
+                          style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_phone.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              const Icon(Icons.phone_outlined,
+                                  color: Colors.white70, size: 13),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(_phone,
+                                    style: GoogleFonts.outfit(
+                                        color: Colors.white70, fontSize: 13),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color:
+                                    Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '$memberSince · $ratingStr ★',
+                                style: GoogleFonts.outfit(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () async {
+                      final updated = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              EditProfileScreen(userData: _userData ?? {}),
+                        ),
+                      );
+                      if (updated == true) _fetchData();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.edit_outlined,
+                          color: Colors.white, size: 18),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -71,587 +236,393 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
     );
   }
 
-  Widget _buildProfileCard(_ProfileMetrics metrics) {
+  Widget _buildAvatar() {
+    return Stack(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            color: Colors.white24,
+          ),
+          child: ClipOval(
+            child: _profileImageUrl.isNotEmpty
+                ? Image.network(_profileImageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.person, size: 40, color: Colors.white))
+                : const Icon(Icons.person, size: 40, color: Colors.white),
+          ),
+        ),
+        Positioned(
+          bottom: 2,
+          right: 2,
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsRow() {
+    final ratingDisplay =
+        _rating > 0 ? '${_rating.toStringAsFixed(1)} ★' : 'New';
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Row(
+        children: [
+          _StatCell(value: '$_totalRides', label: 'Total Rides'),
+          _Divider(),
+          _StatCell(value: ratingDisplay, label: 'Rating'),
+          _Divider(),
+          _StatCell(
+              value: 'Rs ${WalletRepository.balance.toStringAsFixed(0)}',
+              label: 'Balance'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Text(text,
+        style: GoogleFonts.outfit(
+            fontSize: 16, fontWeight: FontWeight.w700, color: _kText));
+  }
+
+  Widget _buildRideHistory() {
+    if (_rideHistory.isEmpty) {
+      return _EmptyCard(
+          icon: Icons.directions_car_outlined,
+          message: 'No rides yet. Book your first ride!');
+    }
+
+    final rides = _rideHistory.take(4).toList();
+    return Column(
+      children: rides
+          .map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _FirestoreRideTile(ride: r),
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildWalletCard() {
+    return _SettingsRow(
+      icon: Icons.account_balance_wallet_rounded,
+      iconColor: _kRed,
+      iconBg: _kRed.withValues(alpha: 0.1),
+      title: 'Wallet Balance',
+      trailing: Text(
+        'Rs ${WalletRepository.balance.toStringAsFixed(0)}',
+        style: GoogleFonts.outfit(
+            fontSize: 15, fontWeight: FontWeight.w700, color: _kRed),
+      ),
+      onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => const WalletHistoryScreen())),
+    );
+  }
+
+  Widget _buildAccountActions() {
+    return Column(
+      children: [
+        _SettingsRow(
+          icon: Icons.person_outline_rounded,
+          iconColor: const Color(0xFF0EA5E9),
+          iconBg: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
+          title: 'Edit Profile',
+          onTap: () async {
+            final updated = await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    EditProfileScreen(userData: _userData ?? {}),
+              ),
+            );
+            if (updated == true) _fetchData();
+          },
+        ),
+        const SizedBox(height: 8),
+        _SettingsRow(
+          icon: Icons.headset_mic_outlined,
+          iconColor: const Color(0xFF10B981),
+          iconBg: const Color(0xFF10B981).withValues(alpha: 0.1),
+          title: 'Support',
+          subtitle: 'Help & contact us',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const SupportScreen(userRole: 'passenger'),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _SettingsRow(
+          icon: Icons.privacy_tip_outlined,
+          iconColor: const Color(0xFFF59E0B),
+          iconBg: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+          title: 'Privacy & Security',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const PrivacySecurityScreen()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Logout',
+              style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w700, color: _kText)),
+          content: Text('Are you sure you want to logout?',
+              style: GoogleFonts.outfit(color: _kSubText)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel',
+                  style: GoogleFonts.outfit(color: _kSubText)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kRed,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                Navigator.pop(context);
+                await FirebaseAuth.instance.signOut();
+                if (!context.mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const UserChoice()),
+                  (r) => false,
+                );
+              },
+              child: Text('Logout', style: GoogleFonts.outfit()),
+            ),
+          ],
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: _kRed.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kRed.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.logout_rounded, color: _kRed, size: 20),
+            const SizedBox(width: 8),
+            Text('Logout',
+                style: GoogleFonts.outfit(
+                    color: _kRed,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4)),
+        ],
+      ),
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).padding.bottom + 8, top: 10),
+      child: Row(
+        children: [
+          _NavItem(
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: 'Home',
+            isActive: _navIndex == 0,
+            onTap: () {
+              setState(() => _navIndex = 0);
+              Navigator.of(context).popUntil((r) => r.isFirst);
+            },
+          ),
+          _NavItem(
+            icon: Icons.account_balance_wallet_outlined,
+            activeIcon: Icons.account_balance_wallet_rounded,
+            label: 'Wallet',
+            isActive: _navIndex == 1,
+            onTap: () {
+              setState(() => _navIndex = 1);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const WalletHistoryScreen()),
+              ).then((_) {
+                if (mounted) setState(() => _navIndex = 2);
+              });
+            },
+          ),
+          _NavItem(
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: 'Profile',
+            isActive: _navIndex == 2,
+            onTap: () => setState(() => _navIndex = 2),
           ),
         ],
       ),
-      padding: EdgeInsets.all(metrics.cardPadding),
+    );
+  }
+}
+
+// ── Firestore Ride Tile ────────────────────────────────────────────────────────
+class _FirestoreRideTile extends StatelessWidget {
+  const _FirestoreRideTile({required this.ride});
+  final Map<String, dynamic> ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final pickup =
+        (ride['originAddress'] ?? ride['pickupAddress'] ?? 'Unknown') as String;
+    final dropoff = (ride['destinationAddress'] ??
+        ride['dropoffAddress'] ??
+        'Unknown') as String;
+    final fare = (ride['fare'] as num?)?.toDouble() ?? 0.0;
+    final status = (ride['status'] ?? 'completed') as String;
+    final isCompleted = status.toLowerCase() == 'completed';
+    final statusColor = isCompleted ? const Color(0xFF10B981) : _kRed;
+    final statusLabel =
+        status[0].toUpperCase() + status.substring(1).toLowerCase();
+
+    DateTime? ts;
+    try {
+      final raw = ride['createdAt'];
+      if (raw != null && raw.runtimeType.toString().contains('Timestamp')) {
+        ts = raw.toDate() as DateTime;
+      }
+    } catch (_) {}
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3)),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Container(
-            width: metrics.avatarSize,
-            height: metrics.avatarSize,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: AssetImage('Assets/icons/women1.jpeg'),
-                fit: BoxFit.cover,
-              ),
+              color: _kRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: const Icon(Icons.directions_car_rounded,
+                color: _kRed, size: 22),
           ),
-          SizedBox(width: metrics.smallSpacing * 1.5),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Alina Khan',
-                  style: GoogleFonts.inter(
-                    fontSize: metrics.nameFont,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-                SizedBox(height: metrics.smallSpacing / 2),
-                Text(
-                  'Trusted Rider Since 2021',
-                  style: GoogleFonts.inter(
-                    fontSize: metrics.smallFont,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                SizedBox(height: metrics.smallSpacing / 2),
                 Row(
                   children: [
-                    Icon(
-                      Icons.phone_outlined,
-                      size: metrics.iconSize * 0.8,
-                      color: Colors.grey[600],
+                    Expanded(
+                      child: Text(pickup,
+                          style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _kText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                     ),
-                    SizedBox(width: metrics.smallSpacing / 2),
-                    Text(
-                      '+1 (555) 123-4567',
-                      style: GoogleFonts.inter(
-                        fontSize: metrics.smallFont,
-                        color: Colors.grey[600],
-                      ),
+                    const Icon(Icons.arrow_forward_rounded,
+                        size: 13, color: _kSubText),
+                    Expanded(
+                      child: Text(dropoff,
+                          style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _kText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right),
                     ),
                   ],
                 ),
+                if (ts != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    WalletRepository.formatTimestamp(ts),
+                    style: GoogleFonts.outfit(
+                        fontSize: 11, color: _kSubText),
+                  ),
+                ],
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRideHistorySection(_ProfileMetrics metrics) {
-    final rideHistory = WalletRepository.getRideHistory();
-    // Add some dummy rides to match the image
-    final allRides = [
-      ...rideHistory,
-      RideHistoryEntry(
-        rideId: 'ride_20231115_01',
-        pickup: 'KIET North',
-        dropoff: 'Atrium',
-        fare: 500,
-        timestamp: DateTime(2023, 11, 15, 14, 30),
-        status: 'Completed',
-      ),
-      RideHistoryEntry(
-        rideId: 'ride_20231110_01',
-        pickup: 'Malir Cantt',
-        dropoff: 'DHA Phase 6',
-        fare: 600,
-        timestamp: DateTime(2023, 11, 10, 9, 0),
-        status: 'Completed',
-      ),
-      RideHistoryEntry(
-        rideId: 'ride_20231110_02',
-        pickup: 'Malir Cantt',
-        dropoff: 'DHA Phase 6',
-        fare: 600,
-        timestamp: DateTime(2023, 11, 10, 9, 0),
-        status: 'Cancelled',
-      ),
-      RideHistoryEntry(
-        rideId: 'ride_20231110_03',
-        pickup: 'Cantt Station',
-        dropoff: 'DHA Phase 6',
-        fare: 600,
-        timestamp: DateTime(2023, 11, 10, 9, 0),
-        status: 'Completed',
-      ),
-    ];
-    allRides.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Ride History',
-          style: GoogleFonts.inter(
-            fontSize: metrics.sectionTitleFont,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          ),
-        ),
-        SizedBox(height: metrics.smallSpacing),
-        ...allRides
-            .take(4)
-            .map(
-              (ride) => Padding(
-                padding: EdgeInsets.only(bottom: metrics.smallSpacing),
-                child: _RideHistoryCard(ride: ride, metrics: metrics),
-              ),
-            ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentMethodSection(_ProfileMetrics metrics) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Payment Method',
-              style: GoogleFonts.inter(
-                fontSize: metrics.sectionTitleFont,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Payment management coming soon.',
-                      style: GoogleFonts.inter(),
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                'Manage',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFFFC153b),
-                  fontWeight: FontWeight.w600,
-                  fontSize: metrics.smallFont,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: metrics.smallSpacing),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(metrics.cardRadius),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.all(metrics.cardPadding),
-          child: Row(
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Image.asset(
-                'Assets/icons/card_13913311.png',
-                width: metrics.iconSize,
-                height: metrics.iconSize,
-              ),
-              SizedBox(width: metrics.smallSpacing),
-              Text(
-                'Visa',
-                style: GoogleFonts.inter(
-                  fontSize: metrics.cardTitleFont,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '**** 1234',
-                style: GoogleFonts.inter(
-                  fontSize: metrics.cardTitleFont,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildWalletBalanceSection(_ProfileMetrics metrics) {
-    final balance = WalletRepository.balance;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Wallet Balance',
-              style: GoogleFonts.inter(
-                fontSize: metrics.sectionTitleFont,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const WalletHistoryScreen(),
-                  ),
-                );
-              },
-              child: Text(
-                'Manage',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFFFC153b),
-                  fontWeight: FontWeight.w600,
-                  fontSize: metrics.smallFont,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: metrics.smallSpacing),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(metrics.cardRadius),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.all(metrics.cardPadding),
-          child: Row(
-            children: [
-              Image.asset(
-                'Assets/icons/purse_993040.png',
-                width: metrics.iconSize,
-                height: metrics.iconSize,
-              ),
-              SizedBox(width: metrics.smallSpacing),
-              Text(
-                'Wallet Balance',
-                style: GoogleFonts.inter(
-                  fontSize: metrics.cardTitleFont,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'Rs. ${balance.toStringAsFixed(0)}',
-                style: GoogleFonts.inter(
-                  fontSize: metrics.cardTitleFont,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFFC153b),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAccountActionsSection(_ProfileMetrics metrics) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Account Actions',
-          style: GoogleFonts.inter(
-            fontSize: metrics.sectionTitleFont,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          ),
-        ),
-        SizedBox(height: metrics.smallSpacing),
-        _AccountActionTile(
-          icon: Icons.person_outline,
-          label: 'Edit Profile',
-          metrics: metrics,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Edit profile feature coming soon.',
-                  style: GoogleFonts.inter(),
-                ),
-              ),
-            );
-          },
-        ),
-        SizedBox(height: metrics.smallSpacing / 2),
-        _AccountActionTile(
-          icon: Icons.account_balance_wallet_outlined,
-          label: 'Manage Payment',
-          metrics: metrics,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Payment management coming soon.',
-                  style: GoogleFonts.inter(),
-                ),
-              ),
-            );
-          },
-        ),
-        SizedBox(height: metrics.smallSpacing / 2),
-        _AccountActionTile(
-          icon: Icons.headset_mic_outlined,
-          label: 'Support',
-          metrics: metrics,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Support feature coming soon.',
-                  style: GoogleFonts.inter(),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLogoutButton(_ProfileMetrics metrics) {
-    return ElevatedButton(
-      onPressed: () {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('Logout', style: GoogleFonts.inter()),
-            content: Text(
-              'Are you sure you want to logout?',
-              style: GoogleFonts.inter(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel', style: GoogleFonts.inter()),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // Close dialog
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const UserChoice()),
-                    (route) => false, // Remove all previous routes
-                  );
-                },
-                child: Text(
-                  'Logout',
-                  style: GoogleFonts.inter(color: const Color(0xFFFC153b)),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFC153b),
-        foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(vertical: metrics.buttonPadding),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(metrics.buttonRadius),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.logout),
-          SizedBox(width: metrics.smallSpacing),
-          Text(
-            'Logout',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
-              fontSize: metrics.buttonFont,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(_ProfileMetrics metrics) {
-    return BottomNavigationBar(
-      currentIndex: _bottomNavIndex,
-      backgroundColor: Colors.white,
-      elevation: 10,
-      selectedItemColor: const Color(0xFFFC153b),
-      unselectedItemColor: Colors.grey[600],
-      selectedFontSize: (metrics.smallFont + 1).clamp(12.0, 16.0),
-      unselectedFontSize: metrics.smallFont.clamp(11.0, 15.0),
-      selectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-      unselectedLabelStyle: GoogleFonts.inter(),
-      type: BottomNavigationBarType.fixed,
-      onTap: (index) {
-        setState(() => _bottomNavIndex = index);
-        switch (index) {
-          case 0:
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            break;
-          case 1:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const WalletHistoryScreen()),
-            ).then((_) {
-              if (mounted) {
-                setState(() => _bottomNavIndex = 2);
-              }
-            });
-            break;
-          case 2:
-            // Stay on Profile
-            break;
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          activeIcon: Icon(Icons.account_balance_wallet),
-          label: 'Wallet',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
-    );
-  }
-}
-
-class _RideHistoryCard extends StatelessWidget {
-  const _RideHistoryCard({required this.ride, required this.metrics});
-
-  final RideHistoryEntry ride;
-  final _ProfileMetrics metrics;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCompleted = ride.status.toLowerCase() == 'completed';
-    final statusColor = isCompleted ? Colors.green : const Color(0xFFFC153b);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.all(metrics.cardPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Image.asset(
-                'Assets/icons/location.png',
-                width: metrics.iconSize * 0.7,
-                height: metrics.iconSize * 0.7,
-              ),
-              SizedBox(width: metrics.smallSpacing / 2),
-              Expanded(
-                child: Text(
-                  '${ride.pickup} to ${ride.dropoff}',
-                  style: GoogleFonts.inter(
-                    fontSize: metrics.cardSubtitleFont,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              SizedBox(width: metrics.smallSpacing),
-              Text(
-                'Rs ${ride.fare.toStringAsFixed(0)}',
-                style: GoogleFonts.inter(
-                  fontSize: metrics.cardSubtitleFont,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFFC153b),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: metrics.smallSpacing),
-          Row(
-            children: [
-              Image.asset(
-                'Assets/icons/calendar.png',
-                width: metrics.iconSize * 0.6,
-                height: metrics.iconSize * 0.6,
-              ),
-              SizedBox(width: metrics.smallSpacing / 2),
-              Text(
-                WalletRepository.formatTimestamp(ride.timestamp).split(' ')[0],
-                style: GoogleFonts.inter(
-                  fontSize: metrics.smallFont,
-                  color: Colors.grey[600],
-                ),
-              ),
-              SizedBox(width: metrics.smallSpacing),
-              Image.asset(
-                'Assets/icons/clock.png',
-                width: metrics.iconSize * 0.6,
-                height: metrics.iconSize * 0.6,
-              ),
-              SizedBox(width: metrics.smallSpacing / 2),
-              Text(
-                '${ride.timestamp.hour.toString().padLeft(2, '0')}:${ride.timestamp.minute.toString().padLeft(2, '0')}',
-                style: GoogleFonts.inter(
-                  fontSize: metrics.smallFont,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const Spacer(),
+              Text('Rs ${fare.toStringAsFixed(0)}',
+                  style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _kText)),
+              const SizedBox(height: 4),
               Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: metrics.smallSpacing,
-                  vertical: metrics.smallSpacing / 2,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(metrics.buttonRadius / 2),
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  ride.status,
-                  style: GoogleFonts.inter(
-                    fontSize: metrics.smallFont * 0.85,
-                    fontWeight: FontWeight.w600,
-                    color: statusColor,
-                  ),
-                ),
+                child: Text(statusLabel,
+                    style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor)),
               ),
             ],
           ),
@@ -661,50 +632,75 @@ class _RideHistoryCard extends StatelessWidget {
   }
 }
 
-class _AccountActionTile extends StatelessWidget {
-  const _AccountActionTile({
+// ── Settings row ──────────────────────────────────────────────────────────────
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
     required this.icon,
-    required this.label,
-    required this.metrics,
+    required this.iconColor,
+    required this.iconBg,
+    required this.title,
+    this.subtitle,
+    this.trailing,
     required this.onTap,
   });
 
   final IconData icon;
-  final String label;
-  final _ProfileMetrics metrics;
+  final Color iconColor;
+  final Color iconBg;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(metrics.cardRadius),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(metrics.cardRadius),
+          color: _kCard,
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 3)),
           ],
         ),
-        padding: EdgeInsets.all(metrics.cardPadding),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFFFC153b), size: metrics.iconSize),
-            SizedBox(width: metrics.smallSpacing),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: metrics.cardTitleFont,
-                fontWeight: FontWeight.w600,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _kText)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!,
+                        style: GoogleFonts.outfit(
+                            fontSize: 12, color: _kSubText)),
+                  ],
+                ],
               ),
             ),
-            const Spacer(),
-            Icon(Icons.chevron_right, color: Colors.grey[400]),
+            trailing ??
+                Icon(Icons.chevron_right_rounded,
+                    color: Colors.grey[400], size: 22),
           ],
         ),
       ),
@@ -712,64 +708,109 @@ class _AccountActionTile extends StatelessWidget {
   }
 }
 
-class _ProfileMetrics {
-  _ProfileMetrics({
-    required this.horizontalPadding,
-    required this.sectionSpacing,
-    required this.cardPadding,
-    required this.cardRadius,
-    required this.cardTitleFont,
-    required this.cardSubtitleFont,
-    required this.smallSpacing,
-    required this.iconSize,
-    required this.buttonRadius,
-    required this.appBarFont,
-    required this.nameFont,
-    required this.sectionTitleFont,
-    required this.buttonPadding,
-    required this.smallFont,
-    required this.avatarSize,
-    required this.buttonFont,
+// ── Stat cell ─────────────────────────────────────────────────────────────────
+class _StatCell extends StatelessWidget {
+  const _StatCell({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value,
+              style: GoogleFonts.outfit(
+                  fontSize: 18, fontWeight: FontWeight.w800, color: _kText)),
+          const SizedBox(height: 3),
+          Text(label,
+              style: GoogleFonts.outfit(fontSize: 12, color: _kSubText)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 36, color: const Color(0xFFE2E8F0));
+  }
+}
+
+// ── Empty card ────────────────────────────────────────────────────────────────
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({required this.icon, required this.message});
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      decoration:
+          BoxDecoration(color: _kCard, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        children: [
+          Icon(icon, size: 40, color: _kSubText),
+          const SizedBox(height: 10),
+          Text(message,
+              style: GoogleFonts.outfit(fontSize: 13, color: _kSubText),
+              textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Bottom nav item ───────────────────────────────────────────────────────────
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
   });
 
-  final double horizontalPadding;
-  final double sectionSpacing;
-  final double cardPadding;
-  final double cardRadius;
-  final double cardTitleFont;
-  final double cardSubtitleFont;
-  final double smallSpacing;
-  final double iconSize;
-  final double buttonRadius;
-  final double appBarFont;
-  final double nameFont;
-  final double sectionTitleFont;
-  final double buttonPadding;
-  final double smallFont;
-  final double avatarSize;
-  final double buttonFont;
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
 
-  factory _ProfileMetrics.fromContext(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final height = MediaQuery.of(context).size.height;
-
-    return _ProfileMetrics(
-      horizontalPadding: (width * 0.05).clamp(16.0, 24.0),
-      sectionSpacing: (height * 0.02).clamp(16.0, 24.0),
-      cardPadding: (width * 0.04).clamp(12.0, 18.0),
-      cardRadius: (width * 0.03).clamp(10.0, 16.0),
-      cardTitleFont: (width * 0.04).clamp(14.0, 18.0),
-      cardSubtitleFont: (width * 0.038).clamp(13.0, 17.0),
-      smallSpacing: (width * 0.025).clamp(8.0, 12.0),
-      iconSize: (width * 0.06).clamp(20.0, 28.0),
-      buttonRadius: (width * 0.04).clamp(12.0, 18.0),
-      appBarFont: (width * 0.05).clamp(18.0, 22.0),
-      nameFont: (width * 0.06).clamp(20.0, 24.0),
-      sectionTitleFont: (width * 0.045).clamp(16.0, 20.0),
-      buttonPadding: (height * 0.02).clamp(14.0, 18.0),
-      smallFont: (width * 0.032).clamp(12.0, 14.0),
-      avatarSize: (width * 0.2).clamp(60.0, 80.0),
-      buttonFont: (width * 0.042).clamp(15.0, 18.0),
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? _kRed.withValues(alpha: 0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(isActive ? activeIcon : icon,
+                  color: isActive ? _kRed : _kSubText, size: 24),
+            ),
+            const SizedBox(height: 2),
+            Text(label,
+                style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontWeight:
+                        isActive ? FontWeight.w700 : FontWeight.w400,
+                    color: isActive ? _kRed : _kSubText)),
+          ],
+        ),
+      ),
     );
   }
 }

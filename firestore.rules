@@ -1,0 +1,151 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Musafirah – Firestore Security Rules
+// Project : musafirah-db-updated
+// Updated : 2026-04-02
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function incomingData() {
+      return request.resource.data;
+    }
+
+    function hasRequiredFields(fields) {
+      return incomingData().keys().hasAll(fields);
+    }
+
+    // ── Passengers ────────────────────────────────────────────────────────────
+    // Schema: uid, name, email, phone, emergencyContact, profileImageUrl,
+    //         cnicNumber, isVerified, totalRides, rating, createdAt, updatedAt
+    match /Passengers/{uid} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid)
+                    && hasRequiredFields(['uid', 'phone'])
+                    && incomingData().uid == uid;
+      allow update: if isOwner(uid)
+                    && incomingData().uid == uid;
+      allow delete: if false;
+    }
+
+    // ── Drivers ───────────────────────────────────────────────────────────────
+    // Schema: uid, name, email, phone, cnicNumber, cnicName, cnicDob,
+    //         cnicIssue, cnicExpiry, cnicFrontUrl, cnicBackUrl,
+    //         vehicleModel, vehicleColor, vehicleRegistration,
+    //         drivingLicense, licenseExpiry, licenseFrontUrl, licenseBackUrl,
+    //         selfieUrl, profileImageUrl, emergencyContact, city, dob,
+    //         isVerified, registrationStep, rating, totalRides,
+    //         isOnline, createdAt, updatedAt
+    match /Drivers/{uid} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid)
+                    && hasRequiredFields(['uid', 'phone'])
+                    && incomingData().uid == uid;
+      allow update: if isOwner(uid)
+                    && incomingData().uid == uid;
+      allow delete: if false;
+
+      // Passengers can read basic driver info when booking a ride
+      // (name, rating, vehicle, profileImageUrl only — not personal docs).
+      allow read: if isSignedIn();
+    }
+
+    // ── Rides ─────────────────────────────────────────────────────────────────
+    // Schema: rideId, passengerId, driverId, originAddress, originLat, originLng,
+    //         destinationAddress, destinationLat, destinationLng,
+    //         distanceKm, durationMinutes, fare, status, createdAt, updatedAt
+    // Status: requested → accepted → active → completed | cancelled
+    match /Rides/{rideId} {
+      // Passenger who booked OR assigned driver can read.
+      allow read: if isSignedIn()
+                  && (request.auth.uid == resource.data.passengerId
+                      || request.auth.uid == resource.data.driverId);
+
+      // Only the passenger creates a ride.
+      allow create: if isSignedIn()
+                    && hasRequiredFields(['passengerId', 'fare', 'status'])
+                    && incomingData().passengerId == request.auth.uid
+                    && incomingData().status == 'requested';
+
+      // Passenger or driver may update (e.g. cancel or accept).
+      allow update: if isSignedIn()
+                    && (request.auth.uid == resource.data.passengerId
+                        || request.auth.uid == resource.data.driverId);
+
+      allow delete: if false;
+    }
+
+    // ── Wallets ───────────────────────────────────────────────────────────────
+    // Schema: uid, balance, currency, createdAt, updatedAt
+    match /Wallets/{uid} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && incomingData().uid == uid;
+      allow update: if isOwner(uid);
+      allow delete: if false;
+
+      // Transactions sub-collection
+      // Schema: txId, uid, amount, type, description, rideId,
+      //         balanceAfter, createdAt
+      match /Transactions/{txId} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update: if false;   // transactions are immutable
+        allow delete: if false;
+      }
+    }
+
+    // ── Ratings ───────────────────────────────────────────────────────────────
+    // Schema: ratingId, rideId, fromUid, toUid, toRole,
+    //         stars (1-5), comment, createdAt
+    match /Ratings/{ratingId} {
+      allow read:   if isSignedIn()
+                    && (request.auth.uid == resource.data.fromUid
+                        || request.auth.uid == resource.data.toUid);
+      allow create: if isSignedIn()
+                    && hasRequiredFields(['rideId','fromUid','toUid','stars'])
+                    && incomingData().fromUid == request.auth.uid
+                    && incomingData().stars >= 1
+                    && incomingData().stars <= 5;
+      allow update: if false;   // ratings are immutable
+      allow delete: if false;
+    }
+
+    // ── Support Tickets ───────────────────────────────────────────────────────
+    // Schema: ticketId, uid, userRole, subject, message, status,
+    //         createdAt, updatedAt
+    match /SupportTickets/{ticketId} {
+      allow read:   if isSignedIn() && request.auth.uid == resource.data.uid;
+      allow create: if isSignedIn()
+                    && hasRequiredFields(['uid','subject','message'])
+                    && incomingData().uid == request.auth.uid;
+      allow update: if false;   // only admin updates ticket status
+      allow delete: if false;
+    }
+
+    // ── Legacy collections (read + write for existing accounts) ───────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /drivers/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── Deny everything else ──────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

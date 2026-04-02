@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Musafirah – Firebase Storage Rules
+// Project: musafirah-db-updated
+//
+// Storage paths
+// ─────────────
+//  passengers/{uid}/profile.jpg
+//  passengers/{uid}/cnic_front.jpg
+//  passengers/{uid}/cnic_back.jpg
+//  passengers/{uid}/selfie.jpg
+//  drivers/{uid}/profile.jpg
+//  drivers/{uid}/cnic_front.jpg
+//  drivers/{uid}/cnic_back.jpg
+//  drivers/{uid}/license_front.jpg
+//  drivers/{uid}/license_back.jpg
+//  drivers/{uid}/selfie.jpg
+// ─────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Passenger uploads ────────────────────────────────────────────────────
+    match /passengers/{uid}/{fileName} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 5 * 1024 * 1024   // 5 MB max
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Driver uploads ───────────────────────────────────────────────────────
+    match /drivers/{uid}/{fileName} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 5 * 1024 * 1024   // 5 MB max
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Deny everything else ─────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
