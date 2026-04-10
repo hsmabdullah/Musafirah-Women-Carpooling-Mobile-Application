@@ -12,6 +12,9 @@ import 'driver_ride_requests_screen.dart';
 import 'driver_active_rides_screen.dart'; // Added
 import 'driver_wallet_screen.dart';
 import 'driver_profile_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:musafirah_app/services/database_service.dart';
+import 'user_pending_screen.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
   const DriverDashboardScreen({super.key});
@@ -43,17 +46,56 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   // Search State
   bool _isSearching = false;
   List<Map<String, dynamic>> _searchResults = [];
+  String _driverName = 'Driver';
+  String _driverStatus = 'pending';
+  bool _isDataLoading = true;
 
   @override
   void initState() {
     super.initState();
     _startLocationController.text = "Detecting Location...";
+    _fetchDriverData();
     _getCurrentLocation();
     _primeRecentTrips();
-
+    
     // Listen to focus to toggle search state if needed
     _startFocus.addListener(_onFocusChange);
     _dropOffFocus.addListener(_onFocusChange);
+  }
+
+  Future<void> _fetchDriverData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userData = await DatabaseService.getUserData(user.uid, 'Drivers');
+      if (userData != null && mounted) {
+        setState(() {
+          _driverName = userData['name'] ?? 'Driver';
+          _driverStatus = userData['status'] ?? 'pending';
+          _isDataLoading = false;
+        });
+
+        final isBlocked = userData['isBlocked'] == true;
+        if (isBlocked) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserPendingScreen(
+              status: 'blocked',
+              collection: 'Drivers',
+            )),
+          );
+        } else if (_driverStatus != 'approved') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => UserPendingScreen(
+              status: _driverStatus,
+              collection: 'Drivers',
+            )),
+          );
+        }
+      } else if (mounted) {
+        setState(() => _isDataLoading = false);
+      }
+    }
   }
 
   void _onFocusChange() {
@@ -288,7 +330,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  void _onFindRidePressed() {
+  void _onFindRidePressed() async {
     final pickup = _pickupLocation;
     final dropoff = _dropoffLocation;
     if (pickup == null || dropoff == null) {
@@ -309,6 +351,29 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
       pickup: pickup,
       dropoff: dropoff,
     );
+
+    // BROADCAST TRIP TO FIRESTORE
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Map route points to simple double maps for Firestore
+      final List<Map<String, double>> mappedRoute = _routePoints
+          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+          .toList();
+
+      await DatabaseService.updateDriverTrip(
+        uid: user.uid,
+        pickupLat: pickup.latitude,
+        pickupLng: pickup.longitude,
+        pickupAddress: pickupLabel,
+        dropoffLat: dropoff.latitude,
+        dropoffLng: dropoff.longitude,
+        dropoffAddress: dropoffLabel,
+        routePoints: mappedRoute,
+        isOnline: true,
+      );
+    }
+
+    if (!mounted) return;
 
     Navigator.push(
       context,

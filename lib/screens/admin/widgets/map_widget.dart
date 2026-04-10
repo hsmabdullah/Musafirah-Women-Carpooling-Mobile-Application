@@ -62,7 +62,7 @@ class MapWidget extends StatelessWidget {
                           height: 30,
                           child: const Icon(
                             Icons.location_on,
-                            color: Color(0xFFFF1744),
+                            color: Color(0xFFFC153B),
                             size: 30,
                           ),
                         );

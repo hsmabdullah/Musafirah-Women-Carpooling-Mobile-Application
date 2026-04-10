@@ -9,16 +9,16 @@ class TermsConditionsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFFC153B),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Terms & Conditions',
           style: GoogleFonts.outfit(
-            color: Colors.black87,
+            color: Colors.white,
             fontWeight: FontWeight.w600,
             fontSize: 20,
           ),

@@ -6,82 +6,152 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import 'passenger_live_tracking_screen.dart';
 
+const _kRed = Color(0xFFFC153B);
+const _kRedDark = Color(0xFFD4002A);
+const _kBg = Color(0xFFF1F4F8);
+const _kCard = Colors.white;
+const _kText = Color(0xFF0F172A);
+const _kSubText = Color(0xFF64748B);
+
 class RideConfirmedScreen extends StatelessWidget {
   RideConfirmedScreen({super.key, required Map<String, dynamic> driverDetails})
-    : summary = RideSummary.fromMap(driverDetails);
+      : summary = RideSummary.fromMap(driverDetails);
 
   final RideSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    final metrics = _ConfirmedResponsiveMetrics.fromContext(context);
-    final headline = summary.driverName;
-    final rating = summary.driverRating;
-    final trips = summary.driverTrips;
-    final vehicle = summary.vehicleModel;
-    final vehicleColor = summary.vehicleColor;
-    final vehiclePlate = summary.vehiclePlate;
-    final driverPhone = summary.driverPhone;
-    final eta = summary.initialEta;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFC153b),
-        elevation: 0,
-        title: Text(
-          'Ride Confirmed',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            fontSize: metrics.titleFont,
-            color: Colors.white,
+      backgroundColor: _kBg,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildHeroSection(context)),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 20),
+                _buildDriverCard(context),
+                const SizedBox(height: 14),
+                _buildRouteCard(),
+                const SizedBox(height: 14),
+                _buildMapPreview(),
+                const SizedBox(height: 24),
+                _buildTrackingButton(context),
+                const SizedBox(height: 10),
+                _buildCancelButton(context),
+              ]),
+            ),
           ),
-        ),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+        ],
+      ),
+    );
+  }
+
+  // ── Hero section (gradient header + confirmation) ─────────────────────────
+  Widget _buildHeroSection(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_kRed, _kRedDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(
-          horizontal: metrics.horizontalPadding,
-          vertical: metrics.verticalPadding,
-        ),
+      child: SafeArea(
+        bottom: false,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildConfirmationBanner(metrics),
-            SizedBox(height: metrics.sectionSpacing),
-            _buildDriverCard(
-              metrics: metrics,
-              headline: headline,
-              rating: rating,
-              trips: trips,
-              vehicle: vehicle,
-              vehicleColor: vehicleColor,
-              vehiclePlate: vehiclePlate,
-              driverPhone: driverPhone,
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Expanded(
+                    child: Text('Ride Confirmed',
+                        style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700),
+                        textAlign: TextAlign.center),
+                  ),
+                  const SizedBox(width: 48),
+                ],
+              ),
             ),
-            SizedBox(height: metrics.sectionSpacingLarge),
-            _buildMapPreview(metrics: metrics, eta: eta),
-            SizedBox(height: metrics.sectionSpacingLarge),
-            _buildPrimaryButton(
-              label: 'View Live Tracking',
-              background: Colors.white,
-              textColor: const Color(0xFFFC153b),
-              borderColor: const Color(0xFFFC153b),
-              onPressed: () => _openLiveTracking(context),
-              metrics: metrics,
-            ),
-            SizedBox(height: metrics.buttonSpacing),
-            _buildPrimaryButton(
-              label: 'Cancel Ride',
-              background: const Color(0xFFFC153b),
-              textColor: Colors.white,
-              borderColor: const Color(0xFFFC153b),
-              onPressed: () => Navigator.pop(context),
-              metrics: metrics,
+
+            // Confirmation card
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25), width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check_rounded,
+                          color: Colors.white, size: 28),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Driver is on the way!',
+                              style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${summary.driverName} is heading to your pickup.',
+                            style: GoogleFonts.outfit(
+                                color: Colors.white.withValues(alpha: 0.88),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.access_time_rounded,
+                              color: Colors.white, size: 14),
+                          const SizedBox(height: 2),
+                          Text(summary.initialEta,
+                              style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -89,105 +159,56 @@ class RideConfirmedScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildConfirmationBanner(_ConfirmedResponsiveMetrics metrics) {
-    final driverName = summary.driverName;
-
+  // ── Driver card ───────────────────────────────────────────────────────────
+  Widget _buildDriverCard(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(metrics.bannerPadding),
       decoration: BoxDecoration(
-        color: const Color(0xFFFC153b),
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: EdgeInsets.all(metrics.bannerIconPadding),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: Image.asset(
-              'Assets/icons/1.png',
-              width: metrics.bannerIconSize,
-              height: metrics.bannerIconSize,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  Icons.check_circle,
-                  size: metrics.bannerIconSize,
-                  color: const Color(0xFFFC153b),
-                );
-              },
-            ),
-          ),
-          SizedBox(height: metrics.bannerSpacing),
-          Text(
-            'Your ride is confirmed!',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: metrics.bannerTitleFont,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: metrics.bannerSpacing / 2),
-          Text(
-            '$driverName is on her way to pick you up.',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: metrics.bannerBodyFont,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDriverCard({
-    required _ConfirmedResponsiveMetrics metrics,
-    required String headline,
-    required String rating,
-    required String trips,
-    required String vehicle,
-    required String vehicleColor,
-    required String vehiclePlate,
-    required String driverPhone,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(metrics.cardPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
         ],
       ),
+      padding: const EdgeInsets.all(18),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SafeCircleAvatar(
-                radius: metrics.avatarRadius,
-                imagePath:
-                    summary.driverAvatarAsset.isNotEmpty &&
-                        summary.driverAvatarAsset.trim().isNotEmpty
-                    ? summary.driverAvatarAsset.trim()
-                    : 'Assets/icons/women1.jpeg',
-                backgroundColor: const Color(
-                  0xFFFC153b,
-                ).withValues(alpha: 0.05),
+              // Avatar
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [_kRed, _kRedDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                        color: _kRed.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3))
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    summary.driverName.isNotEmpty
+                        ? summary.driverName[0].toUpperCase()
+                        : '?',
+                    style: GoogleFonts.outfit(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white),
+                  ),
+                ),
               ),
-              SizedBox(width: metrics.cardSpacing),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,128 +216,70 @@ class RideConfirmedScreen extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            headline,
-                            style: GoogleFonts.inter(
-                              fontSize: metrics.cardTitleFont,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                          ),
+                          child: Text(summary.driverName,
+                              style: GoogleFonts.outfit(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: _kText)),
                         ),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 16,
-                              color: Colors.amber,
-                            ),
-                            SizedBox(width: metrics.smallSpacing),
-                            Text(
-                              rating,
-                              style: GoogleFonts.inter(
-                                fontSize: metrics.cardSubtitleFont,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(width: metrics.smallSpacing),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: metrics.smallSpacing,
-                            vertical: metrics.smallSpacing / 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFFC153b,
-                            ).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Image.asset(
-                                'Assets/icons/car-seat.png',
-                                width: metrics.statusIconSize,
-                                height: metrics.statusIconSize,
-                                color: const Color(0xFFFC153b),
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(
-                                    Icons.event_seat,
-                                    size: metrics.statusIconSize,
-                                    color: const Color(0xFFFC153b),
-                                  );
-                                },
-                              ),
-                              SizedBox(width: metrics.smallSpacing / 2),
-                              Text(
-                                trips,
-                                style: GoogleFonts.inter(
-                                  fontSize: metrics.cardSubtitleFont,
-                                  color: const Color(0xFFFC153b),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        _StarBadge(rating: summary.driverRating),
                       ],
                     ),
-                    SizedBox(height: metrics.smallSpacing),
-                    Text(
-                      'Active • $trips',
-                      style: GoogleFonts.inter(
-                        fontSize: metrics.cardSubtitleFont,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    SizedBox(height: metrics.cardSpacing),
-                    Text(
-                      '$vehicle, $vehicleColor',
-                      style: GoogleFonts.inter(
-                        fontSize: metrics.cardBodyFont,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    SizedBox(height: metrics.smallSpacing),
-                    Text(
-                      vehiclePlate,
-                      style: GoogleFonts.inter(
-                        fontSize: metrics.cardSubtitleFont,
-                        color: Colors.grey[600],
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                                color: Colors.green, shape: BoxShape.circle)),
+                        const SizedBox(width: 5),
+                        Text('On the way · ${summary.driverTrips} trips',
+                            style: GoogleFonts.outfit(
+                                fontSize: 12, color: _kSubText)),
+                      ],
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          SizedBox(height: metrics.cardSpacingLarge),
+          const SizedBox(height: 16),
+          Container(height: 1, color: const Color(0xFFF1F4F8)),
+          const SizedBox(height: 16),
+          // Vehicle info row
+          Row(
+            children: [
+              _VehicleChip(
+                  icon: Icons.directions_car_rounded,
+                  label: summary.vehicleModel),
+              const SizedBox(width: 8),
+              _VehicleChip(
+                  icon: Icons.palette_outlined, label: summary.vehicleColor),
+              const SizedBox(width: 8),
+              _PlateChip(plate: summary.vehiclePlate),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Phone button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: driverPhone.isEmpty
+              onPressed: summary.driverPhone.isEmpty
                   ? null
-                  : () => _launchPhone(driverPhone),
+                  : () => _launchPhone(summary.driverPhone),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFC153b),
+                backgroundColor: _kRed,
                 foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                  vertical: metrics.contactButtonPadding,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(metrics.buttonRadius),
-                ),
+                    borderRadius: BorderRadius.circular(14)),
               ),
-              icon: const Icon(Icons.phone),
-              label: Text(
-                'Contact Driver',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: metrics.buttonFont,
-                ),
-              ),
+              icon: const Icon(Icons.phone_rounded, size: 17),
+              label: Text('Contact Driver',
+                  style: GoogleFonts.outfit(
+                      fontSize: 14, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -324,79 +287,266 @@ class RideConfirmedScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMapPreview({
-    required _ConfirmedResponsiveMetrics metrics,
-    required String eta,
-  }) {
+  // ── Route card ────────────────────────────────────────────────────────────
+  Widget _buildRouteCard() {
     return Container(
-      width: double.infinity,
-      height: metrics.mapHeight,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          // Route line
+          Column(
+            children: [
+              Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(
+                      color: Colors.green[600],
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.green.withValues(alpha: 0.4),
+                            blurRadius: 4)
+                      ])),
+              Container(
+                width: 2,
+                height: 30,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.green[400]!, _kRed],
+                  ),
+                ),
+              ),
+              Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(
+                      color: _kRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: _kRed.withValues(alpha: 0.4),
+                            blurRadius: 4)
+                      ])),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Pickup',
+                    style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        color: _kSubText,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(summary.pickupAddress,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _kText)),
+                const SizedBox(height: 12),
+                Text('Drop-off',
+                    style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        color: _kSubText,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(summary.dropoffAddress,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _kText)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _kRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              children: [
+                Text('Rs ${summary.fare.toStringAsFixed(0)}',
+                    style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: _kRed)),
+                Text('fare',
+                    style: GoogleFonts.outfit(
+                        fontSize: 10, color: _kSubText)),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  // ── Map preview ───────────────────────────────────────────────────────────
+  Widget _buildMapPreview() {
+    final center = summary.passengerPosition ??
+        summary.initialDriverPosition ??
+        const LatLng(24.8607, 67.0011);
+    final dropoff =
+        summary.dropoffPosition ?? const LatLng(24.8607, 67.0011);
+
+    return Container(
+      height: 190,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
           FlutterMap(
             options: MapOptions(
-              initialCenter: const LatLng(34.0522, -118.2437),
+              initialCenter: center,
               initialZoom: 13,
               interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.musafirah_app',
               ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: const LatLng(34.0522, -118.2437),
-                    width: 40,
-                    height: 40,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Color(0xFFFC153b),
-                      size: 32,
+              PolylineLayer(polylines: [
+                Polyline(
+                    points: [center, dropoff],
+                    strokeWidth: 3.5,
+                    color: _kRed,
+                    borderStrokeWidth: 1.5,
+                    borderColor: Colors.white),
+              ]),
+              MarkerLayer(markers: [
+                Marker(
+                  point: center,
+                  width: 36,
+                  height: 36,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green[600],
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.green.withValues(alpha: 0.4),
+                            blurRadius: 6)
+                      ],
                     ),
+                    child: const Icon(Icons.person_pin_circle_rounded,
+                        color: Colors.white, size: 18),
                   ),
-                ],
-              ),
+                ),
+                Marker(
+                  point: dropoff,
+                  width: 36,
+                  height: 36,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _kRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                            color: _kRed.withValues(alpha: 0.4),
+                            blurRadius: 6)
+                      ],
+                    ),
+                    child: const Icon(Icons.location_on_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                ),
+              ]),
             ],
           ),
+          // ETA overlay
           Positioned(
-            top: metrics.smallSpacing * 3,
-            left: metrics.smallSpacing * 3,
+            top: 12,
+            left: 12,
             child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: metrics.smallSpacing * 3,
-                vertical: metrics.smallSpacing * 2,
-              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 6,
-                  ),
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8)
                 ],
               ),
-              child: Text(
-                'ETA: $eta',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: metrics.cardSubtitleFont,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.access_time_rounded,
+                      color: _kRed, size: 13),
+                  const SizedBox(width: 5),
+                  Text('ETA: ${summary.initialEta}',
+                      style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _kText)),
+                ],
+              ),
+            ),
+          ),
+          // Live badge
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.green[600],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                          color: Colors.white, shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text('LIVE',
+                      style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.5)),
+                ],
               ),
             ),
           ),
@@ -405,54 +555,64 @@ class RideConfirmedScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPrimaryButton({
-    required String label,
-    required Color background,
-    required Color textColor,
-    required Color borderColor,
-    required VoidCallback onPressed,
-    required _ConfirmedResponsiveMetrics metrics,
-  }) {
+  // ── Action buttons ────────────────────────────────────────────────────────
+  Widget _buildTrackingButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onPressed,
+      height: 54,
+      child: ElevatedButton.icon(
+        onPressed: () => _openLiveTracking(context),
         style: ElevatedButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: textColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(metrics.buttonRadius),
-            side: BorderSide(color: borderColor, width: 1),
-          ),
-          padding: EdgeInsets.symmetric(
-            vertical: metrics.buttonPadding,
-            horizontal: metrics.buttonPadding,
-          ),
+          backgroundColor: _kRed,
+          foregroundColor: Colors.white,
+          elevation: 6,
+          shadowColor: _kRed.withValues(alpha: 0.35),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            fontSize: metrics.buttonFont,
-          ),
+        icon: const Icon(Icons.navigation_rounded, size: 20),
+        label: Text('Track Live',
+            style: GoogleFonts.outfit(
+                fontSize: 16, fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
+
+  Widget _buildCancelButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: OutlinedButton.icon(
+        onPressed: () => Navigator.pop(context),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _kRed,
+          side: const BorderSide(color: _kRed, width: 1.5),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
+        icon: const Icon(Icons.cancel_outlined, size: 18),
+        label: Text('Cancel Ride',
+            style: GoogleFonts.outfit(
+                fontSize: 15, fontWeight: FontWeight.w600)),
       ),
     );
   }
 
   void _openLiveTracking(BuildContext context) {
-    final rideId = summary.rideId;
-    if (rideId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ride ID missing', style: GoogleFonts.inter())),
-      );
+    if (summary.rideId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Ride ID missing', style: GoogleFonts.outfit()),
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
       return;
     }
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PassengerLiveTrackingScreen(
-          rideId: rideId,
+          rideId: summary.rideId,
           driverName: summary.driverName,
           driverId: summary.driverId,
           driverPhone: summary.driverPhone,
@@ -471,135 +631,96 @@ class RideConfirmedScreen extends StatelessWidget {
   }
 }
 
-class _ConfirmedResponsiveMetrics {
-  final double titleFont;
-  final double horizontalPadding;
-  final double verticalPadding;
-  final double sectionSpacing;
-  final double sectionSpacingLarge;
-  final double buttonSpacing;
-  final double cardRadius;
-  final double cardPadding;
-  final double cardTitleFont;
-  final double cardSubtitleFont;
-  final double cardBodyFont;
-  final double avatarRadius;
-  final double cardSpacing;
-  final double smallSpacing;
-  final double bannerPadding;
-  final double bannerTitleFont;
-  final double bannerBodyFont;
-  final double bannerSpacing;
-  final double bannerIconSize;
-  final double bannerIconPadding;
-  final double mapHeight;
-  final double buttonRadius;
-  final double buttonPadding;
-  final double buttonFont;
-  final double cardSpacingLarge;
-  final double statusIconSize;
-  final double contactButtonPadding;
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
+class _StarBadge extends StatelessWidget {
+  const _StarBadge({required this.rating});
+  final String rating;
 
-  _ConfirmedResponsiveMetrics({
-    this.titleFont = 24,
-    this.horizontalPadding = 20,
-    this.verticalPadding = 20,
-    this.sectionSpacing = 20,
-    this.sectionSpacingLarge = 30,
-    this.buttonSpacing = 15,
-    this.cardRadius = 12,
-    this.cardPadding = 15,
-    this.cardTitleFont = 18,
-    this.cardSubtitleFont = 14,
-    this.cardBodyFont = 16,
-    this.avatarRadius = 25,
-    this.cardSpacing = 10,
-    this.smallSpacing = 5,
-    this.bannerPadding = 15,
-    this.bannerTitleFont = 20,
-    this.bannerBodyFont = 16,
-    this.bannerSpacing = 8,
-    this.bannerIconSize = 24,
-    this.bannerIconPadding = 10,
-    this.mapHeight = 200,
-    this.buttonRadius = 10,
-    this.buttonPadding = 15,
-    this.buttonFont = 16,
-    this.cardSpacingLarge = 16,
-    this.statusIconSize = 16,
-    this.contactButtonPadding = 12,
-  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star_rounded, color: Colors.amber, size: 13),
+          const SizedBox(width: 3),
+          Text(rating,
+              style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.amber[800])),
+        ],
+      ),
+    );
+  }
+}
 
-  factory _ConfirmedResponsiveMetrics.fromContext(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
+class _VehicleChip extends StatelessWidget {
+  const _VehicleChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
 
-    final double titleFont = screenWidth * 0.05;
-    final double horizontalPadding = screenWidth * 0.05;
-    final double verticalPadding = screenWidth * 0.05;
-    final double sectionSpacing = screenWidth * 0.05;
-    final double sectionSpacingLarge = screenWidth * 0.07;
-    final double buttonSpacing = screenWidth * 0.03;
-    final double cardRadius = screenWidth * 0.03;
-    final double cardPadding = screenWidth * 0.04;
-    final double cardTitleFont = screenWidth * 0.045;
-    final double cardSubtitleFont = screenWidth * 0.035;
-    final double cardBodyFont = screenWidth * 0.04;
-    final double avatarRadius = screenWidth * 0.06;
-    final double cardSpacing = screenWidth * 0.02;
-    final double smallSpacing = screenWidth * 0.01;
-    final double bannerPadding = screenWidth * 0.04;
-    final double bannerTitleFont = screenWidth * 0.05;
-    final double bannerBodyFont = screenWidth * 0.04;
-    final double bannerSpacing = screenWidth * 0.02;
-    final double bannerIconSize = screenWidth * 0.08;
-    final double bannerIconPadding = screenWidth * 0.02;
-    final double mapHeight = screenWidth * 0.3;
-    final double buttonRadius = screenWidth * 0.04;
-    final double buttonPadding = screenWidth * 0.04;
-    final double buttonFont = screenWidth * 0.04;
-    final double cardSpacingLarge = screenWidth * 0.035;
-    final double statusIconSize = screenWidth * 0.04;
-    final double contactButtonPadding = screenWidth * 0.04;
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _kBg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 13, color: _kSubText),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(label,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _kText)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-    return _ConfirmedResponsiveMetrics(
-      titleFont: titleFont,
-      horizontalPadding: horizontalPadding,
-      verticalPadding: verticalPadding,
-      sectionSpacing: sectionSpacing,
-      sectionSpacingLarge: sectionSpacingLarge,
-      buttonSpacing: buttonSpacing,
-      cardRadius: cardRadius,
-      cardPadding: cardPadding,
-      cardTitleFont: cardTitleFont,
-      cardSubtitleFont: cardSubtitleFont,
-      cardBodyFont: cardBodyFont,
-      avatarRadius: avatarRadius,
-      cardSpacing: cardSpacing,
-      smallSpacing: smallSpacing,
-      bannerPadding: bannerPadding,
-      bannerTitleFont: bannerTitleFont,
-      bannerBodyFont: bannerBodyFont,
-      bannerSpacing: bannerSpacing,
-      bannerIconSize: bannerIconSize,
-      bannerIconPadding: bannerIconPadding,
-      mapHeight: mapHeight,
-      buttonRadius: buttonRadius,
-      buttonPadding: buttonPadding,
-      buttonFont: buttonFont,
-      cardSpacingLarge: cardSpacingLarge,
-      statusIconSize: statusIconSize,
-      contactButtonPadding: contactButtonPadding,
+class _PlateChip extends StatelessWidget {
+  const _PlateChip({required this.plate});
+  final String plate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(plate,
+          style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 1)),
     );
   }
 }
 
 Future<void> _launchPhone(String phoneNumber) async {
   final uri = 'tel:${phoneNumber.replaceAll(' ', '')}';
-  if (!await launchUrlString(uri)) {
-    debugPrint('Unable to launch $uri');
-  }
+  if (!await launchUrlString(uri)) debugPrint('Cannot launch $uri');
 }
 
+// ── RideSummary model (unchanged) ─────────────────────────────────────────────
 class RideSummary {
   RideSummary({
     required this.rideId,
@@ -645,9 +766,7 @@ class RideSummary {
     LatLng? parseLatLng(String latKey, String lngKey) {
       final lat = map[latKey];
       final lng = map[lngKey];
-      if (lat is num && lng is num) {
-        return LatLng(lat.toDouble(), lng.toDouble());
-      }
+      if (lat is num && lng is num) return LatLng(lat.toDouble(), lng.toDouble());
       return null;
     }
 
@@ -660,66 +779,17 @@ class RideSummary {
       driverRating: map['driverRating']?.toString() ?? '5.0',
       driverTrips: map['driverTrips']?.toString() ?? '—',
       vehicleModel: map['vehicleModel']?.toString() ?? 'Vehicle',
-      vehicleColor: map['vehicleColor']?.toString() ?? 'Color',
-      vehiclePlate: map['vehiclePlate']?.toString() ?? 'Plate',
-      initialEta: map['eta']?.toString() ?? '--',
+      vehicleColor: map['vehicleColor']?.toString() ?? '—',
+      vehiclePlate: map['vehiclePlate']?.toString() ?? '—',
+      initialEta: map['eta']?.toString() ?? '—',
       driverAvatarAsset: map['driverAvatarAsset']?.toString() ?? '',
       pickupAddress: map['pickupAddress']?.toString() ?? 'Pickup',
       dropoffAddress: map['dropoffAddress']?.toString() ?? 'Drop-off',
       fare: (map['fare'] as num?)?.toDouble() ?? 0,
-      initialDriverPosition: parseLatLng(
-        'initialDriverLat',
-        'initialDriverLng',
-      ),
+      initialDriverPosition:
+          parseLatLng('initialDriverLat', 'initialDriverLng'),
       dropoffPosition: parseLatLng('dropoffLat', 'dropoffLng'),
       passengerPosition: parseLatLng('passengerLat', 'passengerLng'),
-    );
-  }
-}
-
-class _SafeCircleAvatar extends StatefulWidget {
-  const _SafeCircleAvatar({
-    required this.radius,
-    required this.imagePath,
-    required this.backgroundColor,
-  });
-
-  final double radius;
-  final String imagePath;
-  final Color backgroundColor;
-
-  @override
-  State<_SafeCircleAvatar> createState() => _SafeCircleAvatarState();
-}
-
-class _SafeCircleAvatarState extends State<_SafeCircleAvatar> {
-  bool _hasError = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (_hasError) {
-      return CircleAvatar(
-        radius: widget.radius,
-        backgroundColor: widget.backgroundColor,
-        child: Icon(
-          Icons.person,
-          size: widget.radius,
-          color: const Color(0xFFFC153b),
-        ),
-      );
-    }
-
-    return CircleAvatar(
-      radius: widget.radius,
-      backgroundColor: widget.backgroundColor,
-      backgroundImage: AssetImage(widget.imagePath),
-      onBackgroundImageError: (exception, stackTrace) {
-        if (mounted) {
-          setState(() {
-            _hasError = true;
-          });
-        }
-      },
     );
   }
 }

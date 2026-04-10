@@ -8,6 +8,8 @@ import 'dart:io';
 import 'passenger_screen.dart';
 import 'selfie_verification_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'user_choice.dart';
 
 class CNICVerificationScreen extends StatefulWidget {
   final bool isDriver;
@@ -281,7 +283,8 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        imageQuality: 85,
+        maxWidth: 600,
+        imageQuality: 25,
       );
       if (image != null && mounted) {
         if (isFront) {
@@ -383,22 +386,14 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
         final user = AuthService.currentUser;
         if (user == null) return;
 
-        // Upload CNIC images sequentially for better stability
-        debugPrint("Uploading front CNIC...");
-        String? frontUrl = await AuthService.uploadImage(
-          'users/${user.uid}/cnic_front.jpg',
-          _frontCNICImage!,
-        );
+        // Encode CNIC images to Base64 sequentially with aggressive compression
+        debugPrint("Encoding front CNIC...");
+        String? frontUrl = await AuthService.compressAndEncodeImage(_frontCNICImage!);
+        if (frontUrl == null) throw 'Front CNIC encoding failed';
 
-        if (frontUrl == null) throw 'Front CNIC upload failed';
-
-        debugPrint("Uploading back CNIC...");
-        String? backUrl = await AuthService.uploadImage(
-          'users/${user.uid}/cnic_back.jpg',
-          _backCNICImage!,
-        );
-
-        if (backUrl == null) throw 'Back CNIC upload failed';
+        debugPrint("Encoding back CNIC...");
+        String? backUrl = await AuthService.compressAndEncodeImage(_backCNICImage!);
+        if (backUrl == null) throw 'Back CNIC encoding failed';
 
         // If we're here, frontUrl and backUrl are NOT null because of the throws above
         await AuthService.saveUserData(
@@ -480,6 +475,44 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text(
+                      'Are you sure you want to logout and cancel registration?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed == true) {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UserChoice()),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+          ),
+        ],
         centerTitle: true,
       ),
       body: SafeArea(
@@ -1178,7 +1211,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                             ],
                           ),
                         ),
-                        SizedBox(height: screenHeight * 0.025),
+                        SizedBox(height: screenHeight * 0.015),
 
                         // Front Side of CNIC Card
                         Container(
@@ -1225,7 +1258,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                                   color: Colors.grey[600],
                                 ),
                               ),
-                              SizedBox(height: screenHeight * 0.02),
+                              SizedBox(height: screenHeight * 0.01),
 
                               // Upload Area
                               GestureDetector(
@@ -1275,7 +1308,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                                         ),
                                 ),
                               ),
-                              SizedBox(height: screenHeight * 0.015),
+                              SizedBox(height: screenHeight * 0.008),
 
                               // Upload/Capture Button
                               SizedBox(
@@ -1306,7 +1339,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                             ],
                           ),
                         ),
-                        SizedBox(height: screenHeight * 0.025),
+                        SizedBox(height: screenHeight * 0.015),
 
                         // Back Side of CNIC Card
                         Container(
@@ -1353,7 +1386,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                                   color: Colors.grey[600],
                                 ),
                               ),
-                              SizedBox(height: screenHeight * 0.02),
+                              SizedBox(height: screenHeight * 0.01),
 
                               // Upload Area
                               GestureDetector(
@@ -1403,7 +1436,7 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
                                         ),
                                 ),
                               ),
-                              SizedBox(height: screenHeight * 0.015),
+                              SizedBox(height: screenHeight * 0.008),
 
                               // Upload/Capture Button
                               SizedBox(

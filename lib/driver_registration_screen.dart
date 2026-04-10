@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:country_code_picker/country_code_picker.dart';
 
 import 'driver_license_screen.dart'; // Forward reference to the next step
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:musafirah_app/services/database_service.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
   const DriverRegistrationScreen({super.key});
@@ -93,10 +95,27 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
 
     final smsCode = _otpController.text.trim();
 
-    final userCredential = await AuthService.signInWithOTP(
-      verificationId: _verificationId!,
-      smsCode: smsCode,
-    );
+    UserCredential? userCredential;
+    try {
+      userCredential = await AuthService.signInWithOTP(
+        verificationId: _verificationId!,
+        smsCode: smsCode,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _otpError = e.message ?? 'Authentication failed. Please try again.';
+      });
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _otpError = 'Authentication failed. Please try again.';
+      });
+      return;
+    }
 
     if (!mounted) return;
 
@@ -106,8 +125,27 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
       final phone =
           userCredential.user!.phoneNumber ?? AuthService.demoPhone ?? '';
 
-      // Save initial driver data with placeholders
-      await AuthService.initializeDriverData(uid: uid, phone: phone);
+      // Save driver data immediately into the 'Drivers' collection.
+      final dbError = await DatabaseService.saveDriver(
+        uid: uid,
+        phone: phone,
+      );
+
+      if (!mounted) return;
+
+      if (dbError != null) {
+        // Non-fatal: show a snackbar but do not block the registration flow.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Registration started. Sync issue: $dbError',
+              style: GoogleFonts.outfit(fontSize: 13),
+            ),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
 
       setState(() {
         _isLoading = false;

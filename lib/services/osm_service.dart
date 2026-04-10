@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -5,128 +6,121 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 class OSMService {
-  /// Search for places using OpenStreetMap Nominatim API
-  static Future<List<Map<String, dynamic>>> searchPlaces(String query) async {
-    if (query.isEmpty || query.length < 3) {
-      return [];
+  /// Search for places using OpenStreetMap Nominatim API.
+  /// Throws an exception on network/server errors so callers can show
+  /// meaningful feedback. Returns an empty list when the API succeeds but
+  /// finds no matches.
+  static Future<List<Map<String, dynamic>>> searchPlaces(
+    String query, {
+    bool restrictToPakistan = true,
+  }) async {
+    if (query.isEmpty || query.length < 3) return [];
+
+    final params = {
+      'q': query,
+      'format': 'json',
+      'addressdetails': '1',
+      'limit': '10',
+    };
+    if (restrictToPakistan) {
+      params['countrycodes'] = 'pk';
+      // Bias results towards Pakistan's bounding box
+      params['viewbox'] = '60.87,37.13,77.83,23.63';
+      params['bounded'] = '0'; // Bias rather than strict filter (already strictly filtered by countrycodes)
     }
 
-    try {
-      final url = Uri.https('nominatim.openstreetmap.org', '/search', {
-        'q': query,
-        'format': 'json',
-        'addressdetails': '1',
-        'limit': '10',
-        'countrycodes': 'pk', // Pakistan
-      });
+    final url = Uri.https('nominatim.openstreetmap.org', '/search', params);
 
-      final response = await http.get(
-        url,
-        headers: {
-          'User-Agent': 'MusafirahApp/1.0',
-          'Accept-Language': 'en', // Force English language results
-        },
-      );
+    final response = await http
+        .get(url, headers: {
+          'User-Agent': 'Musafirah-Women-Carpooling-App-Pakistan',
+          'Accept-Language': 'en',
+        })
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw Exception('Request timed out. Check your connection.'),
+        );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data
-            .map((place) {
-              try {
-                final address = place['address'] as Map<String, dynamic>?;
+    if (response.statusCode == 429) {
+      throw Exception('Too many requests. Please wait a moment and try again.');
+    }
+    if (response.statusCode != 200) {
+      throw Exception('Search failed (HTTP ${response.statusCode}). Try again.');
+    }
 
-                // Prioritize English names over localized names
-                String mainText =
-                    place['name:en']?.toString() ??
-                    place['name']?.toString() ??
-                    place['display_name']?.toString() ??
-                    '';
-                String secondaryText = '';
+    final List<dynamic> data = json.decode(response.body);
 
-                if (address != null) {
-                  // Build main text from English address components first, fallback to localized
-                  mainText =
-                      place['name:en']?.toString() ??
-                      place['name']?.toString() ??
-                      address['road:en']?.toString() ??
-                      address['road']?.toString() ??
-                      address['suburb:en']?.toString() ??
-                      address['suburb']?.toString() ??
-                      address['city:en']?.toString() ??
-                      address['city']?.toString() ??
-                      mainText;
+    // If Pakistan filter returned nothing, retry without country restriction
+    if (data.isEmpty && restrictToPakistan) {
+      return searchPlaces(query, restrictToPakistan: false);
+    }
 
-                  // Build secondary text using English components
-                  final parts = <String>[];
-                  if (address['city:en'] != null) {
-                    parts.add(address['city:en'].toString());
-                  } else if (address['city'] != null) {
-                    parts.add(address['city'].toString());
-                  }
+    final results = <Map<String, dynamic>>[];
+    for (final place in data) {
+      try {
+        final address = place['address'] as Map<String, dynamic>?;
 
-                  if (address['state:en'] != null) {
-                    parts.add(address['state:en'].toString());
-                  } else if (address['state'] != null) {
-                    parts.add(address['state'].toString());
-                  }
+        String mainText =
+            place['name:en']?.toString() ??
+            place['name']?.toString() ??
+            place['display_name']?.toString() ??
+            '';
 
-                  // Country is usually already in English
-                  if (address['country'] != null) {
-                    parts.add(address['country'].toString());
-                  }
+        String secondaryText = '';
 
-                  secondaryText = parts.join(', ');
-                }
+        if (address != null) {
+          mainText =
+              place['name:en']?.toString() ??
+              place['name']?.toString() ??
+              address['road:en']?.toString() ??
+              address['road']?.toString() ??
+              address['suburb:en']?.toString() ??
+              address['suburb']?.toString() ??
+              address['city:en']?.toString() ??
+              address['city']?.toString() ??
+              mainText;
 
-                // Use display_name as fallback (should respect Accept-Language header)
-                if (mainText.isEmpty) {
-                  mainText = place['display_name']?.toString() ?? '';
-                }
+          final parts = <String>[];
+          final city =
+              address['city:en']?.toString() ??
+              address['city']?.toString() ??
+              address['town']?.toString() ??
+              address['village']?.toString();
+          if (city != null) parts.add(city);
 
-                // Safely parse latitude and longitude
-                double? lat;
-                double? lng;
+          final state =
+              address['state:en']?.toString() ??
+              address['state']?.toString();
+          if (state != null) parts.add(state);
 
-                if (place['lat'] != null) {
-                  final latStr = place['lat'].toString();
-                  lat = double.tryParse(latStr);
-                }
+          if (address['country'] != null) {
+            parts.add(address['country'].toString());
+          }
+          secondaryText = parts.join(', ');
+        }
 
-                if (place['lon'] != null) {
-                  final lngStr = place['lon'].toString();
-                  lng = double.tryParse(lngStr);
-                }
+        if (mainText.isEmpty) {
+          mainText = place['display_name']?.toString() ?? '';
+        }
 
-                // Only return valid results with coordinates
-                if (lat != null && lng != null) {
-                  // Use display_name for description (should respect Accept-Language header)
-                  final description =
-                      place['display_name']?.toString() ?? mainText;
+        final lat = double.tryParse(place['lat']?.toString() ?? '');
+        final lng = double.tryParse(place['lon']?.toString() ?? '');
 
-                  return {
-                    'placeId': place['place_id']?.toString() ?? '',
-                    'description': description,
-                    'mainText': mainText,
-                    'secondaryText': secondaryText,
-                    'latitude': lat,
-                    'longitude': lng,
-                  };
-                }
-                return null;
-              } catch (e) {
-                debugPrint('Error parsing place: $e');
-                return null;
-              }
-            })
-            .where((item) => item != null)
-            .cast<Map<String, dynamic>>()
-            .toList();
+        if (lat != null && lng != null) {
+          results.add({
+            'placeId': place['place_id']?.toString() ?? '',
+            'description': place['display_name']?.toString() ?? mainText,
+            'mainText': mainText,
+            'secondaryText': secondaryText,
+            'latitude': lat,
+            'longitude': lng,
+          });
+        }
+      } catch (e) {
+        debugPrint('Error parsing place entry: $e');
       }
-      return [];
-    } catch (e) {
-      debugPrint('Error searching places: $e');
-      return [];
     }
+    return results;
   }
 
   /// Get place name from coordinates (reverse geocoding)
@@ -142,7 +136,7 @@ class OSMService {
       final response = await http.get(
         url,
         headers: {
-          'User-Agent': 'MusafirahApp/1.0',
+          'User-Agent': 'Musafirah-Women-Carpooling-App-Pakistan',
           'Accept-Language': 'en', // Force English language results
         },
       );

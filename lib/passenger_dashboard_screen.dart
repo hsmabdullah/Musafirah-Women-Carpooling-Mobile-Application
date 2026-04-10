@@ -1,14 +1,22 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:musafirah_app/services/osm_service.dart';
 import 'package:musafirah_app/ride_confirmed_screen.dart';
 import 'passenger_ride_selection_screen.dart';
 import 'package:musafirah_app/wallet_history_screen.dart';
 import 'package:musafirah_app/rider_profile_screen.dart';
 import 'package:musafirah_app/passenger_live_tracking_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:musafirah_app/services/database_service.dart';
+import 'package:musafirah_app/services/recent_destinations_service.dart';
+import 'user_pending_screen.dart';
 
 class PassengerDashboardScreen extends StatefulWidget {
   const PassengerDashboardScreen({super.key});
@@ -33,12 +41,19 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
 
   final List<Marker> _markers = [];
   final List<Polyline> _polylines = [];
+  List<LatLng> _routePoints = [];
 
   List<Map<String, dynamic>> _popularDestinations = [];
+  List<Map<String, dynamic>> _recentDestinations = [];
   final ScrollController _popularDestinationsScrollController =
       ScrollController();
 
   Map<String, dynamic>? _activeRideDetails;
+  String _userName = 'Customer';
+  String _userStatus = 'pending';
+  String _profileImageStr = '';   // base64 data URI or https URL
+  bool _isDataLoading = true;
+  bool _isFindingRide = false; // guard against double-tapping "Find Ride"
 
   @override
   void initState() {
@@ -47,9 +62,77 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     _destinationController.text = _stripPrefix(_destinationText, 'To: ');
     // Delay location fetch until after the first frame is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchUserData();
       _getCurrentLocation();
       _loadPopularDestinations();
+      _loadRecentDestinations();
     });
+  }
+
+  Future<void> _loadRecentDestinations() async {
+    final recents = await RecentDestinationsService.getAll();
+    if (mounted) setState(() => _recentDestinations = recents);
+  }
+
+  Widget _buildDashboardAvatar() {
+    final img = _profileImageStr;
+    if (img.isEmpty) {
+      return const Icon(Icons.person_rounded, size: 22, color: Colors.white);
+    }
+    if (img.startsWith('data:image')) {
+      try {
+        final Uint8List bytes = base64Decode(img.split(',').last);
+        return Image.memory(bytes, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.person_rounded, size: 22, color: Colors.white));
+      } catch (_) {
+        return const Icon(Icons.person_rounded, size: 22, color: Colors.white);
+      }
+    }
+    return Image.network(img, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.person_rounded, size: 22, color: Colors.white));
+  }
+
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userData = await DatabaseService.getUserData(user.uid, 'Passengers');
+      if (userData != null && mounted) {
+        // prefer manually-set profileImageUrl, fall back to registration selfie
+        final profileUrl =
+            (userData['profileImageUrl'] as String?)?.isNotEmpty == true
+                ? userData['profileImageUrl'] as String
+                : (userData['image_selfie'] as String?) ?? '';
+        setState(() {
+          _userName = userData['name'] ?? 'Customer';
+          _userStatus = userData['status'] ?? 'pending';
+          _profileImageStr = profileUrl;
+          _isDataLoading = false;
+        });
+
+        final isBlocked = userData['isBlocked'] == true;
+        if (isBlocked) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserPendingScreen(
+              status: 'blocked',
+              collection: 'Passengers',
+            )),
+          );
+        } else if (_userStatus != 'approved') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => UserPendingScreen(
+              status: _userStatus,
+              collection: 'Passengers',
+            )),
+          );
+        }
+      } else if (mounted) {
+        setState(() => _isDataLoading = false);
+      }
+    }
   }
 
   @override
@@ -133,6 +216,46 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
         debugPrint('Error getting place name: $e');
       }
     }
+  }
+
+  Future<void> _getRealRoute(LatLng start, LatLng end) async {
+    if (!mounted) return;
+    setState(() => _routePoints = []);
+
+    final url = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${start.longitude},${start.latitude};'
+      '${end.longitude},${end.latitude}'
+      '?overview=full&geometries=geojson',
+    );
+
+    try {
+      final response = await http
+          .get(url, headers: {'User-Agent': 'MusafirahApp/1.0'})
+          .timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['routes'] != null && (data['routes'] as List).isNotEmpty) {
+          final coords =
+              data['routes'][0]['geometry']['coordinates'] as List;
+          if (mounted) {
+            setState(() {
+              _routePoints =
+                  coords.map((c) => LatLng(c[1] as double, c[0] as double)).toList();
+            });
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('OSRM routing error: $e');
+    }
+
+    // Fallback to straight line if OSRM fails
+    if (mounted) setState(() => _routePoints = [start, end]);
   }
 
   Future<void> _loadPopularDestinations() async {
@@ -273,77 +396,6 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     }
   }
 
-  Future<void> _selectDestinationOnMap() async {
-    // Placeholder for map selection functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Select on Map feature coming soon.',
-          style: GoogleFonts.inter(),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _handleManualLocationSearch({
-    required bool isOrigin,
-    required String query,
-  }) async {
-    final trimmed = query.trim();
-    if (trimmed.length < 3) {
-      _showError('Please enter at least 3 characters to search.');
-      return;
-    }
-
-    try {
-      final results = await OSMService.searchPlaces(trimmed);
-      if (!mounted) return;
-
-      if (results.isEmpty) {
-        _showError('No matching locations found.');
-        return;
-      }
-
-      final result = results.first;
-      final latitude = result['latitude'] as double?;
-      final longitude = result['longitude'] as double?;
-      if (latitude == null || longitude == null) {
-        _showError('Selected location is missing coordinates.');
-        return;
-      }
-
-      final display =
-          result['description']?.toString().trim().isNotEmpty == true
-          ? result['description'].toString()
-          : result['mainText']?.toString() ?? trimmed;
-
-      setState(() {
-        if (isOrigin) {
-          _origin = LatLng(latitude, longitude);
-          _originText = 'From: $display';
-          _originController.text = display;
-        } else {
-          _destination = LatLng(latitude, longitude);
-          _destinationText = 'To: $display';
-          _destinationController.text = display;
-        }
-      });
-
-      Future.delayed(const Duration(milliseconds: 120), () {
-        if (!mounted) return;
-        _updateMapMarkers();
-        _updateMapCamera();
-        if (_origin != null && _destination != null) {
-          _calculateFare();
-        }
-      });
-    } catch (e) {
-      debugPrint('Manual location search error: $e');
-      if (mounted) {
-        _showError('Unable to search for that location. Please try again.');
-      }
-    }
-  }
 
   String _stripPrefix(String value, String prefix) {
     if (value.startsWith(prefix)) {
@@ -356,50 +408,64 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     if (!mounted) return;
 
     final newMarkers = <Marker>[];
-    final newPolylines = <Polyline>[];
 
     if (_origin != null) {
       newMarkers.add(
         Marker(
           point: _origin!,
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.green,
+              color: Colors.green[600],
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: const Icon(Icons.location_on, color: Colors.white, size: 24),
-          ),
-        ),
-      );
-    }
-    if (_destination != null) {
-      newMarkers.add(
-        Marker(
-          point: _destination!,
-          width: 40,
-          height: 40,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.red,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-            ),
-            child: const Icon(Icons.location_on, color: Colors.white, size: 24),
+            child: const Icon(Icons.my_location, color: Colors.white, size: 22),
           ),
         ),
       );
     }
 
-    // Update polylines
-    if (_origin != null && _destination != null) {
-      newPolylines.add(
-        Polyline(
-          points: [_origin!, _destination!],
-          strokeWidth: 4,
-          color: const Color(0xFFFC153b),
+    if (_destination != null) {
+      newMarkers.add(
+        Marker(
+          point: _destination!,
+          width: 44,
+          height: 52,
+          child: Column(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFC153b),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.place, color: Colors.white, size: 18),
+              ),
+              Container(
+                width: 3,
+                height: 10,
+                color: const Color(0xFFFC153b),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -407,9 +473,17 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     setState(() {
       _markers.clear();
       _markers.addAll(newMarkers);
-      _polylines.clear();
-      _polylines.addAll(newPolylines);
+      // Clear old route when markers change; real route fetched below
+      if (_origin == null || _destination == null) {
+        _routePoints = [];
+        _polylines.clear();
+      }
     });
+
+    // Fetch real road route when both points are set
+    if (_origin != null && _destination != null) {
+      _getRealRoute(_origin!, _destination!);
+    }
   }
 
   Future<void> _calculateFare() async {
@@ -474,8 +548,9 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     }
   }
 
-  void _onFindRide() {
+  void _onFindRide() async {
     if (!mounted) return;
+    if (_isFindingRide) return; // prevent double-tap creating duplicate requests
 
     // Validate locations
     if (_origin == null || _destination == null) {
@@ -483,11 +558,47 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
       return;
     }
 
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showError('You must be logged in to find a ride.');
+      return;
+    }
+
+    setState(() => _isFindingRide = true);
+
     // Use calculated fare or default
     final fareToUse = _estimatedFare > 0 ? _estimatedFare : 550.0;
-    const userId = 'passenger_demo_user';
+    
+    // Broadcast the request to Firestore
+    final result = await DatabaseService.createRideRequest(
+      uid: user.uid,
+      passengerName: _userName,
+      pickupLat: _origin!.latitude,
+      pickupLng: _origin!.longitude,
+      pickupAddress: _originText.replaceAll('From: ', ''),
+      dropoffLat: _destination!.latitude,
+      dropoffLng: _destination!.longitude,
+      dropoffAddress: _destinationText.replaceAll('To: ', ''),
+      fare: fareToUse,
+    );
+
+    if (result.startsWith('Error:')) {
+      _showError('Failed to broadcast ride: $result');
+      if (mounted) setState(() => _isFindingRide = false);
+      return;
+    }
+
+    final rideId = result;
+
+    // Save destination to recent destinations
+    await RecentDestinationsService.save(
+      address: _destinationText.replaceAll('To: ', ''),
+      lat: _destination!.latitude,
+      lng: _destination!.longitude,
+    );
 
     // Navigate to ride selection screen
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -497,11 +608,13 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
           pickupAddress: _originText.replaceAll('From: ', ''),
           dropoffAddress: _destinationText.replaceAll('To: ', ''),
           estimatedFare: fareToUse,
-          userId: userId,
+          userId: user.uid,
+          rideId: rideId,
         ),
       ),
     ).then((rideResult) async {
       if (!mounted) return;
+      setState(() => _isFindingRide = false); // allow finding a new ride
 
       if (rideResult != null) {
         setState(() {
@@ -518,6 +631,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
       }
 
       _calculateFare();
+      _loadRecentDestinations(); // refresh recently used list
     });
   }
 
@@ -533,95 +647,76 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     final buttonHeight = metrics.buttonHeight;
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          // Header - Extends to top
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top,
-              bottom: metrics.headerBottomPadding,
-              left: horizontalPadding,
-              right: horizontalPadding,
-            ),
-            decoration: const BoxDecoration(color: Color(0xFFFC153b)),
-            child: Row(
-              children: [
-                // Profile Picture
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const RiderProfileScreen(),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Header - Extends to top
+            Container(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 8,
+                bottom: 16,
+                left: horizontalPadding,
+                right: horizontalPadding,
+              ),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFC153b), Color(0xFFD4002A)],
+                ),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const RiderProfileScreen())),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
                       ),
-                    );
-                  },
-                  child: Container(
+                      child: ClipOval(child: _buildDashboardAvatar()),
+                    ),
+                  ),
+                  SizedBox(width: screenWidth * 0.03),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Good day, $_userName 👋',
+                            style: GoogleFonts.outfit(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400)),
+                        Text('Where to today?',
+                            style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'Assets/icons/women1.jpeg',
-                        width: 36,
-                        height: 36,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: 36,
-                            height: 36,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.person,
-                              size: 20,
-                              color: Color(0xFFFC153b),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                    child: const Icon(Icons.notifications_outlined,
+                        color: Colors.white, size: 22),
                   ),
-                ),
-                SizedBox(width: screenWidth * 0.02),
-                // Title (centered)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'Home',
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: fontSizeTitle,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: screenWidth * 0.02),
-                // Notification Icon
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () {},
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Map Section
-          Expanded(
-            flex: 4,
-            child: Stack(
-              children: [
+            // Map Section
+            SizedBox(
+              height: screenHeight * 0.45,
+              child: Stack(
+                children: [
                 // OpenStreetMap - fills entire Stack
                 FlutterMap(
                   mapController: _mapController,
@@ -649,8 +744,28 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                       userAgentPackageName: 'com.example.musafirah_app',
                       maxZoom: 19,
                     ),
+                    // Google Maps–style route: white border underneath, colored line on top
+                    if (_routePoints.length >= 2) ...[
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _routePoints,
+                            strokeWidth: 10,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _routePoints,
+                            strokeWidth: 6,
+                            color: const Color(0xFFFC153b),
+                          ),
+                        ],
+                      ),
+                    ],
                     MarkerLayer(markers: _markers),
-                    PolylineLayer(polylines: _polylines),
                   ],
                 ),
 
@@ -667,7 +782,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFC153b).withOpacity(0.1),
+                                color: const Color(0xFFFC153b).withValues(alpha: 0.1),
                                 blurRadius: 15,
                                 offset: const Offset(0, 4),
                               ),
@@ -683,7 +798,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                                     decoration: BoxDecoration(
                                       color: const Color(
                                         0xFFFC153b,
-                                      ).withOpacity(0.1),
+                                      ).withValues(alpha: 0.1),
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(
@@ -796,6 +911,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                                         _destination = null;
                                         _markers.clear();
                                         _polylines.clear();
+                                        _routePoints = [];
                                         _estimatedFare = 0.0;
                                       });
                                     },
@@ -813,148 +929,172 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                         ),
                       )
                     : Positioned(
-                        bottom: screenHeight * 0.02,
+                        bottom: screenHeight * 0.018,
                         left: horizontalPadding,
                         right: horizontalPadding,
                         child: Container(
-                          padding: EdgeInsets.all(horizontalPadding * 0.8),
+                          padding: EdgeInsets.all(horizontalPadding * 0.85),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 24,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Origin Field
+                              // Route connector + fields
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _originController,
-                                      keyboardType: TextInputType.streetAddress,
-                                      textInputAction: TextInputAction.search,
-                                      onTap: () {
-                                        _originController.selection =
-                                            TextSelection(
-                                              baseOffset: 0,
-                                              extentOffset:
-                                                  _originController.text.length,
-                                            );
-                                      },
-                                      onSubmitted: (value) =>
-                                          _handleManualLocationSearch(
-                                            isOrigin: true,
-                                            query: value,
-                                          ),
-                                      decoration: InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: _originText,
-                                        prefixIcon: Icon(
-                                          Icons.search,
-                                          color: Colors.grey[600],
+                                  // Dot connector column
+                                  Column(
+                                    children: [
+                                      Container(
+                                        width: 10, height: 10,
+                                        decoration: BoxDecoration(
+                                          color: Colors.green[500],
+                                          shape: BoxShape.circle,
                                         ),
                                       ),
-                                      style: GoogleFonts.inter(
-                                        fontSize: fontSizeBody,
-                                        color: Colors.black87,
+                                      Container(
+                                        width: 2, height: 28,
+                                        color: Colors.grey[200],
                                       ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Use current location',
-                                    icon: const Icon(
-                                      Icons.my_location,
-                                      color: Color(0xFFFC153b),
-                                    ),
-                                    onPressed: _useCurrentLocation,
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Browse saved locations',
-                                    icon: const Icon(
-                                      Icons.list_alt,
-                                      color: Color(0xFFFC153b),
-                                    ),
-                                    onPressed: _selectOrigin,
-                                  ),
-                                ],
-                              ),
-                              Divider(color: Colors.grey[300], height: 1),
-                              // Destination Field
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _destinationController,
-                                      keyboardType: TextInputType.streetAddress,
-                                      textInputAction: TextInputAction.search,
-                                      onTap: () {
-                                        _destinationController
-                                            .selection = TextSelection(
-                                          baseOffset: 0,
-                                          extentOffset: _destinationController
-                                              .text
-                                              .length,
-                                        );
-                                      },
-                                      onSubmitted: (value) =>
-                                          _handleManualLocationSearch(
-                                            isOrigin: false,
-                                            query: value,
-                                          ),
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: 'To: Enter destination',
-                                        prefixIcon: Icon(
-                                          Icons.location_on,
+                                      Container(
+                                        width: 10, height: 10,
+                                        decoration: const BoxDecoration(
                                           color: Color(0xFFFC153b),
+                                          shape: BoxShape.circle,
                                         ),
                                       ),
-                                      style: GoogleFonts.inter(
-                                        fontSize: fontSizeBody,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
+                                    ],
                                   ),
-                                  IconButton(
-                                    tooltip: 'Search destination',
-                                    icon: const Icon(
-                                      Icons.arrow_forward,
-                                      color: Color(0xFFFC153b),
+                                  const SizedBox(width: 12),
+                                  // Fields
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        // Origin
+                                        GestureDetector(
+                                          onTap: _selectOrigin,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8F9FA),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _originController.text.isEmpty
+                                                        ? 'Current location'
+                                                        : _originController.text,
+                                                    style: GoogleFonts.outfit(
+                                                      fontSize: fontSizeBody,
+                                                      color: _originController.text.isEmpty
+                                                          ? Colors.grey[400]
+                                                          : const Color(0xFF0F172A),
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                GestureDetector(
+                                                  onTap: _useCurrentLocation,
+                                                  child: const Icon(Icons.my_location_rounded,
+                                                      color: Color(0xFFFC153b), size: 18),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        // Destination
+                                        GestureDetector(
+                                          onTap: _selectDestination,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8F9FA),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _destinationController.text.isEmpty
+                                                        ? 'Where are you going?'
+                                                        : _destinationController.text,
+                                                    style: GoogleFonts.outfit(
+                                                      fontSize: fontSizeBody,
+                                                      color: _destinationController.text.isEmpty
+                                                          ? Colors.grey[400]
+                                                          : const Color(0xFF0F172A),
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                const Icon(Icons.search_rounded,
+                                                    color: Color(0xFFFC153b), size: 18),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    onPressed: () {
-                                      _handleManualLocationSearch(
-                                        isOrigin: false,
-                                        query: _destinationController.text,
-                                      );
-                                    },
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Browse saved destinations',
-                                    icon: const Icon(
-                                      Icons.list_alt,
-                                      color: Color(0xFFFC153b),
-                                    ),
-                                    onPressed: _selectDestination,
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Select on Map',
-                                    icon: const Icon(
-                                      Icons.map,
-                                      color: Color(0xFFFC153b),
-                                    ),
-                                    onPressed: _selectDestinationOnMap,
                                   ),
                                 ],
                               ),
 
-                              SizedBox(height: metrics.cardFieldSpacing),
+                              if (_estimatedFare > 0 || _isLoadingFare) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFC153b).withValues(alpha: 0.06),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.monetization_on_rounded,
+                                          color: Color(0xFFFC153b), size: 16),
+                                      const SizedBox(width: 6),
+                                      Text('Estimated fare',
+                                          style: GoogleFonts.outfit(
+                                              fontSize: 12,
+                                              color: Colors.grey[600])),
+                                      const Spacer(),
+                                      _isLoadingFare
+                                          ? const SizedBox(
+                                              width: 14, height: 14,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Color(0xFFFC153b),
+                                              ))
+                                          : Text(
+                                              'Rs ${_estimatedFare.toStringAsFixed(0)}',
+                                              style: GoogleFonts.outfit(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: const Color(0xFFFC153b))),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 12),
                               // Find Ride Button
                               SizedBox(
                                 width: double.infinity,
@@ -964,17 +1104,25 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFFFC153b),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(14),
                                     ),
                                     elevation: 0,
                                   ),
-                                  child: Text(
-                                    'Find Ride',
-                                    style: GoogleFonts.inter(
-                                      fontSize: fontSizeButton,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.directions_car_rounded,
+                                          color: Colors.white, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Find a Ride',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: fontSizeButton,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -986,243 +1134,290 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
             ),
           ),
 
-          SizedBox(height: metrics.sectionSpacingLarge),
+          const SizedBox(height: 12),
 
-          // Estimated Fare Section
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding * 0.7,
-              vertical: horizontalPadding * 0.5,
+          // Fare display placeholder kept for spacing when no fare
+          if (_estimatedFare == 0 && !_isLoadingFare)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      size: 14, color: Colors.grey[400]),
+                  const SizedBox(width: 6),
+                  Text('Select pickup & drop-off to see fare',
+                      style: GoogleFonts.outfit(
+                          fontSize: 12, color: Colors.grey[400])),
+                ],
+              ),
             ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Estimated Fare',
-                      style: GoogleFonts.inter(
-                        fontSize: fontSizeBody,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFFC153b),
-                      ),
-                    ),
-                    SizedBox(height: screenHeight * 0.004),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.credit_card,
-                          color: const Color(0xFFFC153b),
-                          size: 20,
+
+          const SizedBox(height: 12),
+
+          // Recently Used Destinations Section
+          if (_recentDestinations.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 3,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8B5CF6),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        SizedBox(width: screenWidth * 0.02),
-                        _isLoadingFare
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    const Color(0xFFFC153b),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Recently Used',
+                        style: GoogleFonts.outfit(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 76,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _recentDestinations.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, i) {
+                        final dest = _recentDestinations[i];
+                        final address = dest['address'] as String;
+                        return GestureDetector(
+                          onTap: () {
+                            final lat = (dest['lat'] as num).toDouble();
+                            final lng = (dest['lng'] as num).toDouble();
+                            setState(() {
+                              _destination = LatLng(lat, lng);
+                              _destinationText = 'To: $address';
+                              _destinationController.text = address;
+                            });
+                          },
+                          child: Container(
+                            width: 160,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.black
+                                        .withValues(alpha: 0.05),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2)),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF8B5CF6)
+                                        .withValues(alpha: 0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                      Icons.history_rounded,
+                                      color: Color(0xFF8B5CF6),
+                                      size: 17),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    address,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF0F172A)),
                                   ),
                                 ),
-                              )
-                            : Text(
-                                _estimatedFare > 0
-                                    ? '${_estimatedFare.toStringAsFixed(0)} PKR'
-                                    : '-- PKR',
-                                style: GoogleFonts.inter(
-                                  fontSize: fontSizeTitle * 1.2,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFFC153b),
-                                ),
-                              ),
-                      ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  'Tap for details',
-                  style: GoogleFonts.inter(
-                    fontSize: fontSizeBody * 0.85,
-                    color: Colors.grey[600],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
-          ),
 
-          SizedBox(height: metrics.sectionSpacingSmall),
-
-          // Popular Destinations Section
-          SizedBox(
-            height: screenHeight * 0.15,
+          // Quick Destinations Section
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                  child: Text(
-                    'Popular Destinations',
-                    style: GoogleFonts.inter(
-                      fontSize: fontSizeTitle * 0.9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFC153B),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                ),
-                SizedBox(height: metrics.sectionSpacingTiny),
-                Expanded(
-                  child: ListView.builder(
-                    controller: _popularDestinationsScrollController,
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    clipBehavior: Clip.none,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: horizontalPadding,
+                    const SizedBox(width: 8),
+                    Text(
+                      'Quick Destinations',
+                      style: GoogleFonts.outfit(
+                        fontSize: (fontSizeTitle * 0.82).clamp(13.0, 16.0),
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
+                      ),
                     ),
-                    itemCount: _popularDestinations.length,
-                    itemBuilder: (context, index) {
-                      final destination = _popularDestinations[index];
-                      return _buildPopularDestinationCard(
-                        destination,
-                        screenWidth,
-                        screenHeight,
-                        fontSizeBody,
-                      );
-                    },
+                  ],
+                ),
+                const SizedBox(height: 10),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: (screenWidth / 2 - horizontalPadding - 5) /
+                        (screenHeight * 0.075).clamp(62.0, 76.0),
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: metrics.sectionSpacingTiny),
-
-          // Bottom Navigation Bar
-          Container(
-            padding: EdgeInsets.only(
-              top: screenHeight * 0.01,
-              bottom:
-                  MediaQuery.of(context).padding.bottom + screenHeight * 0.008,
-              left: horizontalPadding * 0.5,
-              right: horizontalPadding * 0.5,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(Icons.home, 'Home', 0, screenWidth, fontSizeBody),
-                _buildNavItem(
-                  Icons.account_balance_wallet,
-                  'Wallet',
-                  1,
-                  screenWidth,
-                  fontSizeBody,
-                ),
-                _buildNavItem(
-                  Icons.person,
-                  'Profile',
-                  2,
-                  screenWidth,
-                  fontSizeBody,
+                  itemCount: _popularDestinations.length,
+                  itemBuilder: (context, index) {
+                    final destination = _popularDestinations[index];
+                    return _buildPopularDestinationCard(
+                        destination, screenWidth, screenHeight, fontSizeBody);
+                  },
                 ),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    int index,
-    double screenWidth,
-    double fontSizeBody,
-  ) {
-    final isSelected = _selectedIndex == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          if (index == 1) {
-            setState(() => _selectedIndex = index);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const WalletHistoryScreen()),
-            ).then((_) {
-              if (mounted) {
-                setState(() => _selectedIndex = 0);
-              }
-            });
-            return;
-          }
-          if (index == 2) {
-            setState(() => _selectedIndex = index);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RiderProfileScreen()),
-            ).then((_) {
-              if (mounted) {
-                setState(() => _selectedIndex = 0);
-              }
-            });
-            return;
-          }
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? const Color(0xFFFC153b) : Colors.grey[600],
-              size: 24,
+    ),
+    bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              top: BorderSide(color: const Color(0xFFF1F5F9), width: 1.5),
             ),
-            SizedBox(height: screenWidth * 0.006),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: fontSizeBody * 0.85,
-                color: isSelected ? const Color(0xFFFC153b) : Colors.grey[600],
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
               ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                _buildNavItem(Icons.home_rounded, 'Home', 0),
+                _buildNavItem(Icons.account_balance_wallet_rounded, 'Wallet', 1),
+                _buildNavItem(Icons.person_rounded, 'Profile', 2),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+
+  Widget _buildNavItem(IconData icon, String label, int index) {
+    final isSelected = _selectedIndex == index;
+    const activeColor = Color(0xFFFC153B);
+
+    void onTap() {
+      if (index == 1) {
+        setState(() => _selectedIndex = index);
+        Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const WalletHistoryScreen()))
+            .then((_) {
+          if (mounted) setState(() => _selectedIndex = 0);
+        });
+        return;
+      }
+      if (index == 2) {
+        setState(() => _selectedIndex = index);
+        Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const RiderProfileScreen()))
+            .then((_) {
+          if (mounted) setState(() => _selectedIndex = 0);
+        });
+        return;
+      }
+      setState(() => _selectedIndex = index);
+    }
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? activeColor.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: Icon(
+                  icon,
+                  key: ValueKey(isSelected),
+                  size: 24,
+                  color: isSelected ? activeColor : const Color(0xFFB0BEC5),
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 180),
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  fontWeight:
+                      isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? activeColor : const Color(0xFFB0BEC5),
+                ),
+                child: Text(label),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Icons per destination — falls back to location_on
+  static const Map<String, IconData> _destIcons = {
+    'Clifton': Icons.beach_access_rounded,
+    'DHA Phase 5': Icons.villa_rounded,
+    'Gulshan-e-Iqbal': Icons.park_rounded,
+    'North Nazimabad': Icons.location_city_rounded,
+  };
 
   Widget _buildPopularDestinationCard(
     Map<String, dynamic> destination,
@@ -1230,55 +1425,81 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
     double screenHeight,
     double fontSizeBody,
   ) {
-    return InkWell(
+    final name = destination['name'] as String;
+    final icon = _destIcons[name] ?? Icons.location_on_rounded;
+
+    return GestureDetector(
       onTap: () => _onPopularDestinationTap(destination),
       child: Container(
-        width: screenWidth * 0.35,
-        height: screenHeight * 0.08,
-        margin: EdgeInsets.only(right: screenWidth * 0.025),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.pink[300]!, Colors.purple[300]!],
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Stack(
-            children: [
-              // Background decoration
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: () => _onPopularDestinationTap(destination),
+            borderRadius: BorderRadius.circular(14),
+            splashColor: const Color(0xFFFC153B).withValues(alpha: 0.08),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFC153B), Color(0xFFFF6B8A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 18),
                   ),
-                ),
-              ),
-              // Content
-              Padding(
-                padding: EdgeInsets.all(screenWidth * 0.03),
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Text(
-                    destination['name'] as String,
-                    style: GoogleFonts.inter(
-                      fontSize: fontSizeBody * 0.9,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: (fontSizeBody * 0.88).clamp(11.0, 13.0),
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Karachi',
+                          style: GoogleFonts.outfit(
+                            fontSize: (fontSizeBody * 0.75).clamp(9.5, 11.0),
+                            color: const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  const Icon(Icons.arrow_forward_ios_rounded,
+                      size: 12, color: Color(0xFFCBD5E1)),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1356,41 +1577,59 @@ class _DestinationSearchDialogState extends State<_DestinationSearchDialog> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
+  String? _errorMessage;
+  Timer? _debounce;
+  int _searchToken = 0;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    if (value.length < 3) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+          _errorMessage = null;
+        });
+      }
+      return;
+    }
+    if (mounted) setState(() { _isSearching = true; _errorMessage = null; });
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      _searchPlaces(value);
+    });
   }
 
   Future<void> _searchPlaces(String query) async {
     if (query.isEmpty || query.length < 3) {
       if (!mounted) return;
-      setState(() {
-        _searchResults = [];
-        _isSearching = false;
-      });
+      setState(() { _searchResults = []; _isSearching = false; });
       return;
     }
 
-    if (!mounted) return;
-    setState(() {
-      _isSearching = true;
-    });
+    final token = ++_searchToken;
 
     try {
       final results = await OSMService.searchPlaces(query);
-      if (!mounted) return;
+      if (!mounted || token != _searchToken) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
+        _errorMessage = null;
       });
     } catch (e) {
       debugPrint('Error searching places: $e');
-      if (!mounted) return;
+      if (!mounted || token != _searchToken) return;
       setState(() {
         _searchResults = [];
         _isSearching = false;
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
     }
   }
@@ -1421,11 +1660,7 @@ class _DestinationSearchDialogState extends State<_DestinationSearchDialog> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
-                          if (mounted) {
-                            setState(() {
-                              _searchResults = [];
-                            });
-                          }
+                          _onSearchChanged('');
                         },
                       )
                     : null,
@@ -1433,9 +1668,7 @@ class _DestinationSearchDialogState extends State<_DestinationSearchDialog> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onChanged: (value) {
-                _searchPlaces(value);
-              },
+              onChanged: _onSearchChanged,
               style: GoogleFonts.inter(fontSize: fontSizeBody),
             ),
             const SizedBox(height: 16),
@@ -1449,24 +1682,77 @@ class _DestinationSearchDialogState extends State<_DestinationSearchDialog> {
                         ),
                       ),
                     )
+                  : _errorMessage != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.wifi_off, color: Colors.grey, size: 40),
+                            const SizedBox(height: 12),
+                            Text(
+                              _errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: fontSizeBody,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton.icon(
+                              onPressed: () => _searchPlaces(_searchController.text),
+                              icon: const Icon(Icons.refresh, color: Color(0xFFFC153b)),
+                              label: Text(
+                                'Retry',
+                                style: GoogleFonts.inter(color: const Color(0xFFFC153b)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : _searchController.text.length < 3
                   ? Center(
-                      child: Text(
-                        'Type at least 3 characters to search',
-                        style: GoogleFonts.inter(
-                          fontSize: fontSizeBody,
-                          color: Colors.grey[600],
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.search, color: Colors.grey[400], size: 40),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Type at least 3 characters to search',
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeBody,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : _searchResults.isEmpty
                   ? Center(
-                      child: Text(
-                        'No results found',
-                        style: GoogleFonts.inter(
-                          fontSize: fontSizeBody,
-                          color: Colors.grey[600],
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.location_off, color: Colors.grey[400], size: 40),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No locations found for "${_searchController.text}"',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeBody,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Try a different name or be more specific',
+                            style: GoogleFonts.inter(
+                              fontSize: fontSizeBody * 0.85,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(
@@ -1485,13 +1771,15 @@ class _DestinationSearchDialogState extends State<_DestinationSearchDialog> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          subtitle: Text(
-                            result['secondaryText'] ?? '',
-                            style: GoogleFonts.inter(
-                              fontSize: fontSizeBody * 0.9,
-                              color: Colors.grey[600],
-                            ),
-                          ),
+                          subtitle: result['secondaryText']?.toString().isNotEmpty == true
+                              ? Text(
+                                  result['secondaryText'],
+                                  style: GoogleFonts.inter(
+                                    fontSize: fontSizeBody * 0.9,
+                                    color: Colors.grey[600],
+                                  ),
+                                )
+                              : null,
                           onTap: () {
                             Navigator.pop(context, {
                               'placeId': result['placeId'],

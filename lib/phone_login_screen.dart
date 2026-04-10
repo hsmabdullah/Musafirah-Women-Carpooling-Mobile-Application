@@ -3,12 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:musafirah_app/driver_dashboard_screen.dart';
 import 'package:musafirah_app/passenger_dashboard_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:musafirah_app/services/database_service.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
-  final String userType; // 'passenger' or 'driver'
-
-  const PhoneLoginScreen({super.key, required this.userType});
+  const PhoneLoginScreen({super.key});
 
   @override
   State<PhoneLoginScreen> createState() => _PhoneLoginScreenState();
@@ -18,6 +18,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   CountryCode? _selectedCountryCode;
   bool _isOtpSent = false;
   bool _isLoading = false;
@@ -27,7 +28,20 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   void dispose() {
     _phoneController.dispose();
     _otpController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToOtp() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
@@ -71,6 +85,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: horizontalPadding,
@@ -165,80 +180,73 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                             // Phone Number Field
                             Expanded(
                               flex: 7,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    height: inputHeight,
-                                    child: TextFormField(
-                                      controller: _phoneController,
-                                      keyboardType: TextInputType.phone,
-                                      maxLength: 15,
-                                      textAlign: TextAlign.center,
-                                      enabled: !_isOtpSent,
-                                      decoration: InputDecoration(
-                                        hintText: 'e.g., 300 1234567',
-                                        hintStyle: GoogleFonts.inter(
-                                          fontSize: fontSizeBody,
-                                          color: Colors.grey[600],
-                                        ),
-                                        errorStyle: GoogleFonts.inter(
-                                          color: Colors.red,
-                                          fontSize: 13,
-                                          height: 1.2,
-                                        ),
-                                        counterText: '',
-                                        filled: true,
-                                        fillColor: _isOtpSent
-                                            ? Colors.grey[100]
-                                            : Colors.white,
-                                        border: OutlineInputBorder(
-                                          borderRadius: const BorderRadius.only(
-                                            topRight: Radius.circular(8),
-                                            bottomRight: Radius.circular(8),
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.grey[300]!,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        focusedBorder: const OutlineInputBorder(
-                                          borderRadius: BorderRadius.only(
-                                            topRight: Radius.circular(8),
-                                            bottomRight: Radius.circular(8),
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFFFC153b),
-                                            width: 2,
-                                          ),
-                                        ),
+                              child: SizedBox(
+                                height: inputHeight,
+                                child: TextFormField(
+                                  controller: _phoneController,
+                                  keyboardType: TextInputType.phone,
+                                  maxLength: 15,
+                                  textAlign: TextAlign.center,
+                                  enabled: !_isOtpSent,
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g., 300 1234567',
+                                    hintStyle: GoogleFonts.inter(
+                                      fontSize: fontSizeBody,
+                                      color: Colors.grey[600],
+                                    ),
+                                    errorStyle: GoogleFonts.inter(
+                                      color: Colors.red,
+                                      fontSize: 13,
+                                      height: 1.2,
+                                    ),
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: _isOtpSent
+                                        ? Colors.grey[100]
+                                        : Colors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(8),
+                                        bottomRight: Radius.circular(8),
                                       ),
-                                      style: GoogleFonts.inter(
-                                        fontSize: fontSizeBody,
-                                        color: Colors.black87,
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                        width: 1.5,
                                       ),
-                                      validator: (value) {
-                                        if (!_isOtpSent &&
-                                            (value == null || value.isEmpty)) {
-                                          return 'Please enter your phone number';
-                                        }
-                                        if (!_isOtpSent &&
-                                            value != null &&
-                                            value.length < 7) {
-                                          return 'Phone number is too short';
-                                        }
-                                        if (!_isOtpSent &&
-                                            value != null &&
-                                            !RegExp(
-                                              r'^[0-9]+$',
-                                            ).hasMatch(value)) {
-                                          return 'Phone number should contain only digits';
-                                        }
-                                        return null;
-                                      },
+                                    ),
+                                    focusedBorder: const OutlineInputBorder(
+                                      borderRadius: BorderRadius.only(
+                                        topRight: Radius.circular(8),
+                                        bottomRight: Radius.circular(8),
+                                      ),
+                                      borderSide: BorderSide(
+                                        color: Color(0xFFFC153b),
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
-                                ],
+                                  style: GoogleFonts.inter(
+                                    fontSize: fontSizeBody,
+                                    color: Colors.black87,
+                                  ),
+                                  validator: (value) {
+                                    if (!_isOtpSent &&
+                                        (value == null || value.isEmpty)) {
+                                      return 'Please enter your phone number';
+                                    }
+                                    if (!_isOtpSent &&
+                                        value != null &&
+                                        value.length < 7) {
+                                      return 'Phone number is too short';
+                                    }
+                                    if (!_isOtpSent &&
+                                        value != null &&
+                                        !RegExp(r'^[0-9]+$').hasMatch(value)) {
+                                      return 'Phone number should contain only digits';
+                                    }
+                                    return null;
+                                  },
+                                ),
                               ),
                             ),
                           ],
@@ -276,7 +284,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                                     ),
                                   )
                                 : Text(
-                                    'Submit',
+                                    'Send OTP',
                                     style: GoogleFonts.inter(
                                       color: Colors.white,
                                       fontSize: fontSizeButton,
@@ -287,7 +295,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                         ),
                         SizedBox(height: screenHeight * 0.03),
 
-                        // OTP Card (Always visible)
+                        // OTP Card
                         Container(
                           padding: EdgeInsets.all(horizontalPadding),
                           decoration: BoxDecoration(
@@ -339,7 +347,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                               SizedBox(height: screenHeight * 0.02),
                               if (!_isOtpSent)
                                 Text(
-                                  'Enter your phone number and click Submit to receive OTP',
+                                  'Enter your phone number and tap Send OTP to receive your code',
                                   style: GoogleFonts.inter(
                                     fontSize: fontSizeBody * 0.9,
                                     color: Colors.grey[600],
@@ -484,15 +492,8 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   }
 
   void _handleSubmit() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (!_isOtpSent) {
-      _sendOtp();
-    } else {
-      _verifyOtp();
-    }
+    if (!_formKey.currentState!.validate()) return;
+    _sendOtp();
   }
 
   void _sendOtp() async {
@@ -513,6 +514,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           _isOtpSent = true;
           _isLoading = false;
         });
+
+        // Auto-scroll to OTP section
+        _scrollToOtp();
 
         final otpMessage = AuthService.useDemoMode
             ? 'OTP sent to $fullPhoneNumber (Demo: ${AuthService.demoGeneratedOtp})'
@@ -545,14 +549,12 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   }
 
   void _verifyOtp() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     if (_verificationId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please request OTP first')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please request OTP first')),
+      );
       return;
     }
 
@@ -562,32 +564,58 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
 
     final smsCode = _otpController.text.trim();
 
-    final userCredential = await AuthService.signInWithOTP(
-      verificationId: _verificationId!,
-      smsCode: smsCode,
-    );
+    UserCredential? userCredential;
+    try {
+      userCredential = await AuthService.signInWithOTP(
+        verificationId: _verificationId!,
+        smsCode: smsCode,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message ?? 'Authentication failed. Please try again.',
+            style: GoogleFonts.inter(),
+          ),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 8),
+        ),
+      );
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Authentication failed. Please try again.',
+            style: GoogleFonts.inter(),
+          ),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
     if (userCredential != null && userCredential.user != null) {
-      // Login successful
       final uid = userCredential.user!.uid;
       final phone =
           userCredential.user!.phoneNumber ?? AuthService.demoPhone ?? '';
 
-      // Check if user exists in Firestore, if not create basic profile
-      if (widget.userType == 'driver') {
-        await AuthService.initializeDriverData(uid: uid, phone: phone);
-      } else {
-        final userDoc = await AuthService.getUserData(uid);
-        if (userDoc == null || !userDoc.exists) {
-          await AuthService.saveUserData(
-            uid: uid,
-            role: widget.userType,
-            phone: phone,
-          );
-        }
+      // Resolve role from both new and legacy Firestore collections.
+      String? role = await DatabaseService.getUserRole(uid);
+
+      // First-time login with no existing record → save as passenger.
+      if (role == null) {
+        role = 'passenger';
+        await DatabaseService.savePassenger(uid: uid, phone: phone);
       }
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -596,12 +624,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         ),
       );
 
-      // Navigate to appropriate dashboard
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => widget.userType == 'passenger'
-              ? const PassengerDashboardScreen()
-              : const DriverDashboardScreen(),
+          builder: (_) => role == 'driver'
+              ? const DriverDashboardScreen()
+              : const PassengerDashboardScreen(),
         ),
         (route) => false,
       );
@@ -623,7 +650,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   }
 
   void _resendOtp() {
-    _sendOtp();
+    setState(() {
+      _isOtpSent = false;
+    });
     _otpController.clear();
+    _sendOtp();
   }
 }

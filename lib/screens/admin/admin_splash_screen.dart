@@ -26,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFF1744),
+      backgroundColor: const Color(0xFFFC153B),
       body: Center(
         child: Image.asset(
           'assets/images/musafirah_logo.png',

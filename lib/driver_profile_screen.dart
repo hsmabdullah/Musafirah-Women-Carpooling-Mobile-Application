@@ -5,7 +5,7 @@ import 'package:musafirah_app/services/database_service.dart';
 import 'package:musafirah_app/screens/driver_edit_profile_screen.dart';
 import 'package:musafirah_app/screens/support_screen.dart';
 import 'package:musafirah_app/screens/privacy_security_screen.dart';
-import 'login_screen.dart';
+import 'user_choice.dart';
 
 const _kRed = Color(0xFFFC153B);
 const _kRedDark = Color(0xFFD4002A);
@@ -447,7 +447,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 await FirebaseAuth.instance.signOut();
                 if (!context.mounted) return;
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  MaterialPageRoute(builder: (_) => const UserChoice()),
                   (r) => false,
                 );
               },

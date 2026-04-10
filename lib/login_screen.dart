@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:musafirah_app/driver_dashboard_screen.dart';
-
-//import 'package:musafirah_app/driver.dart';
-import 'package:musafirah_app/passenger_dashboard_screen.dart';
+import 'package:musafirah_app/email_password_login_screen.dart';
 import 'package:musafirah_app/phone_login_screen.dart';
 import 'package:musafirah_app/user_choice.dart';
 
@@ -16,7 +13,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
-  String? _selectedUserType; // 'passenger' or 'driver'
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -43,7 +39,6 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.of(context).size;
     final double screenHeight = screenSize.height;
-    // final double screenWidth = screenSize.width; // Unused
 
     return Scaffold(
       backgroundColor: const Color(0xFFFC153b),
@@ -53,19 +48,48 @@ class _LoginScreenState extends State<LoginScreen>
           SafeArea(
             bottom: false,
             child: SizedBox(
-              height: screenHeight * 0.3,
+              height: screenHeight * 0.45,
               width: double.infinity,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Transform.scale(
-                    scale: 1.15,
-                    child: Image.asset(
-                      'Assets/logos/no background logo.png',
-                      fit: BoxFit.contain,
+              child: Stack(
+                children: [
+                  // Logo + tagline centred
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'Assets/logos/Musafirah_logo.png',
+                          height: screenHeight * 0.40,
+                          width: screenSize.width * 0.95,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Safe rides for women, by women',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  // Back button top-left
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -103,108 +127,29 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Please login to continue using our app',
+                        'Choose how you\'d like to sign in',
                         style: GoogleFonts.outfit(
                           fontSize: 16,
                           color: Colors.grey[600],
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 52),
 
-                      // Role Selection Header
-                      Text(
-                        'I am a:',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Role Selection Cards
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildRoleCard(
-                              title: 'Passenger',
-                              icon: Icons.person_outline_rounded,
-                              value: 'passenger',
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildRoleCard(
-                              title: 'Driver',
-                              icon: Icons.drive_eta_outlined,
-                              value: 'driver',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Google Login Button
+                      // Login with Phone Button
                       ElevatedButton(
-                        onPressed: _selectedUserType == null
-                            ? null
-                            : _handleGoogleLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black87,
-                          elevation: 2,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(color: Colors.grey.shade200),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.transparent,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'G',
-                                  style: GoogleFonts.roboto(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PhoneLoginScreen(),
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Continue with Google',
-                              style: GoogleFonts.outfit(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Phone Login Button
-                      ElevatedButton(
-                        onPressed: _selectedUserType == null
-                            ? null
-                            : _handlePhoneLogin,
+                          );
+                        },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _selectedUserType == null
-                              ? Colors.grey.shade300
-                              : const Color(0xFFFC153b),
+                          backgroundColor: const Color(0xFFFC153b),
                           foregroundColor: Colors.white,
-                          elevation: _selectedUserType == null ? 0 : 4,
+                          elevation: 4,
                           shadowColor: const Color(
                             0xFFFC153b,
                           ).withValues(alpha: 0.4),
@@ -228,8 +173,48 @@ class _LoginScreenState extends State<LoginScreen>
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
 
-                      const SizedBox(height: 48),
+                      // Login with Email Button
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const EmailPasswordLoginScreen(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFFFC153b),
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(
+                              color: Color(0xFFFC153b),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.email_outlined, size: 22),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Login with Email',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 52),
 
                       // Sign Up Link
                       Row(
@@ -270,100 +255,6 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRoleCard({
-    required String title,
-    required IconData icon,
-    required String value,
-  }) {
-    final bool isSelected = _selectedUserType == value;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedUserType = value;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFC153b) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFFC153b) : Colors.grey.shade300,
-            width: 2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFFC153b).withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : [],
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 32,
-              color: isSelected ? Colors.white : Colors.grey.shade600,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : Colors.grey.shade800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _handleGoogleLogin() {
-    if (_selectedUserType == null) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFC153b)),
-      ),
-    );
-
-    Future.delayed(const Duration(seconds: 1), () {
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      if (_selectedUserType == 'passenger') {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const PassengerDashboardScreen()),
-          (route) => false,
-        );
-      } else {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const DriverDashboardScreen()),
-          (route) => false,
-        );
-      }
-    });
-  }
-
-  void _handlePhoneLogin() {
-    if (_selectedUserType == null) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PhoneLoginScreen(userType: _selectedUserType!),
       ),
     );
   }

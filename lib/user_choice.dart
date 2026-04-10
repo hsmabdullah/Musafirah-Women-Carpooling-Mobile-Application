@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'passenger_screen.dart';
-import 'driver_registration_screen.dart'; // Changed import
-import 'login_screen.dart';
-import 'terms_conditions_screen.dart';
+import 'passenger_email_signup_screen.dart';
+import 'driver_email_signup_screen.dart';
+import 'email_password_login_screen.dart';
 import 'screens/admin/admin_login_screen.dart' as admin;
 
 class UserChoice extends StatefulWidget {
@@ -99,60 +98,7 @@ class _UserChoiceState extends State<UserChoice>
                     ],
                   ),
                 ),
-                child: SafeArea(
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20.0,
-                        vertical: 10.0,
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(25),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Log In',
-                                style: GoogleFonts.outfit(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.login_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                child: const SizedBox.shrink(),
               ),
             ),
           ),
@@ -178,8 +124,7 @@ class _UserChoiceState extends State<UserChoice>
                         Text(
                           "Empowering\nWomen's Mobility",
                           style: GoogleFonts.outfit(
-                            fontSize:
-                                28, // Slightly reduced for smaller screens overlap safety
+                            fontSize: 28,
                             fontWeight: FontWeight.w800,
                             color: Colors.black87,
                             height: 1.15,
@@ -188,7 +133,7 @@ class _UserChoiceState extends State<UserChoice>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "Choose your journey style",
+                          "Select your role to get started",
                           style: GoogleFonts.outfit(
                             fontSize: 15,
                             color: Colors.grey[500],
@@ -197,54 +142,65 @@ class _UserChoiceState extends State<UserChoice>
                           textAlign: TextAlign.center,
                         ),
 
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 28),
 
                         // Cards
-                        _buildOutstandingCard(
+                        _buildRoleCard(
                           context,
                           title: 'Passenger',
                           subtitle: 'Get a safe ride in minutes',
                           color: const Color(0xFFFC153b),
                           icon: Icons.person_rounded,
-                          isPrimary: true,
-                          onTap: () {
+                          onLogin: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const PassengerScreen(),
+                                builder: (context) => const EmailPasswordLoginScreen(role: 'passenger'),
+                              ),
+                            );
+                          },
+                          onSignUp: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PassengerEmailSignupScreen(),
                               ),
                             );
                           },
                         ),
                         const SizedBox(height: 16),
-                        _buildOutstandingCard(
+                        _buildRoleCard(
                           context,
                           title: 'Driver',
                           subtitle: 'Earn securely on your schedule',
                           color: Colors.black87,
                           icon: Icons.drive_eta_rounded,
-                          isPrimary: false,
-                          onTap: () {
+                          onLogin: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EmailPasswordLoginScreen(role: 'driver'),
+                              ),
+                            );
+                          },
+                          onSignUp: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const DriverRegistrationScreen(), // Changed Navigation
+                                    const DriverEmailSignupScreen(),
                               ),
                             );
                           },
                         ),
                         const SizedBox(height: 16),
-                        _buildOutstandingCard(
+                        _buildRoleCard(
                           context,
                           title: 'Admin',
                           subtitle: 'Manage platform securely',
-                          color: const Color(
-                            0xFF1976D2,
-                          ), // Blue color for admin
+                          color: const Color(0xFF1976D2),
                           icon: Icons.admin_panel_settings_rounded,
-                          isPrimary: false,
-                          onTap: () {
+                          onLogin: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -252,11 +208,10 @@ class _UserChoiceState extends State<UserChoice>
                               ),
                             );
                           },
+                          onSignUp: null,
                         ),
 
-                        const SizedBox(
-                          height: 24,
-                        ), // Replaced Spacer with SizedBox
+                        const SizedBox(height: 24),
                         // Terms Text
                         Padding(
                           padding: EdgeInsets.only(
@@ -266,13 +221,7 @@ class _UserChoiceState extends State<UserChoice>
                             children: [
                               GestureDetector(
                                 onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const TermsConditionsScreen(),
-                                    ),
-                                  );
+                                  // Add Terms navigation if needed
                                 },
                                 child: RichText(
                                   textAlign: TextAlign.center,
@@ -354,101 +303,179 @@ class _UserChoiceState extends State<UserChoice>
     );
   }
 
-  Widget _buildOutstandingCard(
+  Widget _buildRoleCard(
     BuildContext context, {
     required String title,
     required String subtitle,
     required Color color,
     required IconData icon,
-    required bool isPrimary,
-    required VoidCallback onTap,
+    required VoidCallback onLogin,
+    required VoidCallback? onSignUp,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 90, // Slightly reduced height to ensure fix
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.08),
-              blurRadius: 25,
-              offset: const Offset(0, 10),
-            ),
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  bottomLeft: Radius.circular(24),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 25,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Top row: icon + title/subtitle
+          Row(
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    bottomLeft: Radius.circular(0),
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      color: Colors.white.withValues(alpha: 0.2),
+                      size: 44,
+                    ),
+                    Icon(icon, color: Colors.white, size: 26),
+                  ],
                 ),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    color: Colors.white.withValues(alpha: 0.2),
-                    size: 50,
-                  ),
-                  Icon(icon, color: Colors.white, size: 28),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.outfit(
+                        color: Colors.black87,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.outfit(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            ],
+          ),
+
+          // Divider
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(
+              height: 1,
+              color: Colors.grey.withValues(alpha: 0.12),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      color: Colors.black87,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+          ),
+
+          // Bottom row: Login + Sign Up buttons
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Row(
+              children: [
+                // Login button
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onLogin,
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.login_rounded,
+                            color: Colors.white,
+                            size: 15,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Log In',
+                            style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.outfit(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                ),
+
+                if (onSignUp != null) ...[
+                  const SizedBox(width: 10),
+                  // Sign Up button
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: onSignUp,
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: color.withValues(alpha: 0.4),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_add_rounded,
+                              color: color,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Sign Up',
+                              style: GoogleFonts.outfit(
+                                color: color,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
-            Container(
-              margin: const EdgeInsets.only(right: 16),
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.grey[400],
-                size: 16,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

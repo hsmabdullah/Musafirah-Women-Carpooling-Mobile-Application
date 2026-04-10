@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../user_choice.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -7,15 +9,32 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _animationController.forward();
+  }
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
@@ -28,199 +47,226 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isSmallScreen = size.width < 600;
-    final isVerySmallScreen = size.width < 400;
+    const primaryRed = Color(0xFFFC153B);
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: isSmallScreen ? double.infinity : 600,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Header with Gradient
+            Container(
+              height: size.height * 0.35,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [primaryRed, Color(0xFFD20028)],
                 ),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isVerySmallScreen
-                        ? size.width * 0.08
-                        : isSmallScreen
-                        ? size.width * 0.1
-                        : size.width * 0.05,
-                    vertical: isVerySmallScreen
-                        ? size.height * 0.05
-                        : size.height * 0.08,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(60),
+                ),
+              ),
+              child: SafeArea(
+                child: Stack(
+                  children: [
+                    // Back Button
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                        onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const UserChoice()),
+                          (route) => false,
+                        ),
+                        tooltip: 'Back to Selection',
+                      ),
+                    ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(height: isVerySmallScreen ? 20 : 40),
-                        // Title
+                        const SizedBox(height: 20), // Compensate for back button space
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.admin_panel_settings_rounded,
+                            size: 60,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         Text(
-                          'Admin Login',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen
-                                ? 24
-                                : isSmallScreen
-                                ? 28
-                                : 32,
+                          'Musafirah Admin',
+                          style: GoogleFonts.outfit(
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: Colors.white,
+                            letterSpacing: 1.2,
                           ),
                         ),
-                        SizedBox(height: isVerySmallScreen ? 8 : 12),
-                        // Subtitle
+                        const SizedBox(height: 4),
                         Text(
-                          'Access the Musafirah Admin Dashboard securely.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen ? 14 : 16,
-                            color: Colors.grey,
+                          'Management Portal',
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
-                        SizedBox(height: isVerySmallScreen ? 32 : 48),
-                        // Username Field
-                        Text(
-                          'Username',
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen ? 13 : 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: isVerySmallScreen ? 6 : 8),
-                        TextFormField(
-                          controller: _usernameController,
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen ? 14 : 16,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Enter your admin username',
-                            hintStyle: TextStyle(
-                              fontSize: isVerySmallScreen ? 14 : 16,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.grey),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFF1744),
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: isVerySmallScreen ? 14 : 16,
-                              vertical: isVerySmallScreen ? 14 : 16,
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your username';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: isVerySmallScreen ? 20 : 24),
-                        // Password Field
-                        Text(
-                          'Password',
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen ? 13 : 14,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: isVerySmallScreen ? 6 : 8),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          style: TextStyle(
-                            fontSize: isVerySmallScreen ? 14 : 16,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Enter your password',
-                            hintStyle: TextStyle(
-                              fontSize: isVerySmallScreen ? 14 : 16,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.grey),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFF1744),
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: isVerySmallScreen ? 14 : 16,
-                              vertical: isVerySmallScreen ? 14 : 16,
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: isVerySmallScreen ? 32 : 40),
-                        // Login Button
-                        ElevatedButton(
-                          onPressed: _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF1744),
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(
-                              vertical: isVerySmallScreen ? 14 : 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.lock,
-                                size: isVerySmallScreen ? 18 : 20,
-                              ),
-                              SizedBox(width: isVerySmallScreen ? 6 : 8),
-                              Text(
-                                'Login to Dashboard',
-                                style: TextStyle(
-                                  fontSize: isVerySmallScreen ? 14 : 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: isVerySmallScreen ? 20 : 40),
                       ],
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Form Section
+            Padding(
+              padding: const EdgeInsets.fromLTRB(30, 40, 30, 30),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Secure Login',
+                        style: GoogleFonts.outfit(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Please enter your credentials to access the dashboard.',
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // Username Field
+                      TextFormField(
+                        controller: _usernameController,
+                        style: GoogleFonts.outfit(),
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          labelStyle: GoogleFonts.outfit(color: Colors.grey[600]),
+                          prefixIcon: const Icon(Icons.person_outline_rounded, color: primaryRed),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(color: primaryRed, width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'Please enter your username';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Password Field
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        style: GoogleFonts.outfit(),
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          labelStyle: GoogleFonts.outfit(color: Colors.grey[600]),
+                          prefixIcon: const Icon(Icons.lock_outline_rounded, color: primaryRed),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: Colors.grey[400],
+                              size: 20,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(color: primaryRed, width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'Please enter your password';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 40),
+
+                      // Login Button
+                      SizedBox(
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _handleLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryRed,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 8,
+                            shadowColor: primaryRed.withValues(alpha: 0.4),
+                          ),
+                          child: Text(
+                            'Login to Dashboard',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Forgot Password or Help
+                      Center(
+                        child: TextButton(
+                          onPressed: () {},
+                          child: Text(
+                            'Need technical assistance?',
+                            style: GoogleFonts.outfit(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );

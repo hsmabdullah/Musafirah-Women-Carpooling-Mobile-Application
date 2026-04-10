@@ -4,7 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:musafirah_app/driver_data.dart'; // Import the driver data
-import 'package:musafirah_app/services/osm_service.dart';
+import 'package:musafirah_app/services/database_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 
 import 'driver_navigation_screen.dart';
@@ -31,177 +33,47 @@ class DriverRideRequestsScreen extends StatefulWidget {
 }
 
 class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
-  final List<_RideRequest> _availableRides = [];
   final Distance _distance = const Distance();
-  bool _isLoadingRides = true; // Loading state
+
+  // Driver profile loaded from Firestore on init
+  Map<String, dynamic>? _driverProfile;
 
   @override
   void initState() {
     super.initState();
-    _generateMockRidesAsync();
+    _loadDriverProfile();
   }
 
-  Future<void> _generateMockRidesAsync() async {
-    final bool hasRoute = widget.routePoints.isNotEmpty;
-    // Helper to get name or fallback
-    Future<String> getName(LatLng p, String fallback) async {
-      try {
-        // Requires OSMService import. If not available in this file, we might need to move it or import it.
-        // Assuming OSMService is in 'package:musafirah_app/services/osm_service.dart'
-        // If we can't import, we'll use fallback.
-        // For now, let's try to use generic names if we can't easily import OSMService here without breaking things,
-        // BUT user wanted "dynamic", so let's import it.
-        return await OSMService.getPlaceName(p) ?? fallback;
-      } catch (e) {
-        return fallback;
-      }
-    }
-
-    // 1. Exact Route Match (Start -> End)
-    _availableRides.add(
-      _createMockRide(
-        "Sarah Ahmed",
-        widget.driverPickupAddress,
-        widget.driverDropoffAddress,
-        widget.driverPickup,
-        widget.driverDropoff,
-        4.8,
-      ),
-    );
-
-    if (hasRoute && widget.routePoints.length > 20) {
-      int totalPoints = widget.routePoints.length;
-
-      // Calculate indices
-      int idx20 = (totalPoints * 0.2).floor();
-      int idx50 = (totalPoints * 0.5).floor();
-      int idx80 = (totalPoints * 0.8).floor();
-
-      LatLng p20 = widget.routePoints[idx20];
-      LatLng p50 = widget.routePoints[idx50];
-      LatLng p80 = widget.routePoints[idx80];
-
-      // Fetch names concurrently for speed
-      final results = await Future.wait([
-        getName(p20, "Route Stop A"),
-        getName(p50, "Halfway Stop"),
-        getName(p80, "Route Stop B"),
-      ]);
-
-      String name20 = results[0];
-      String name50 = results[1];
-      String name80 = results[2];
-
-      if (mounted) {
-        setState(() {
-          // Ride 1: 20% -> 80%
-          _availableRides.add(
-            _createMockRide("Hania Khan", name20, name80, p20, p80, 4.9),
-          );
-
-          // Ride 2: Start -> 50%
-          _availableRides.add(
-            _createMockRide(
-              "Sana Malik",
-              widget.driverPickupAddress,
-              name50,
-              widget.driverPickup,
-              p50,
-              4.7,
-            ),
-          );
-
-          // Ride 3: 50% -> End
-          _availableRides.add(
-            _createMockRide(
-              "Zara Ali",
-              name50,
-              widget.driverDropoffAddress,
-              p50,
-              widget.driverDropoff,
-              4.6,
-            ),
-          );
-
-          _isLoadingRides = false;
-
-          // Remove rides that are already accepted
-          _availableRides.removeWhere(
-            (ride) => DriverData.acceptedRides.any(
-              (accepted) =>
-                  accepted.passengerName == ride.name &&
-                  accepted.pickupName == ride.pickupName &&
-                  accepted.dropoffName == ride.dropoffName,
-            ),
-          );
-        });
-      }
-    } else {
-      // Fallback for short routes or no path
-      if (mounted) {
-        setState(() {
-          _isLoadingRides = false;
-          // Remove rides that are already accepted
-          _availableRides.removeWhere(
-            (ride) => DriverData.acceptedRides.any(
-              (accepted) =>
-                  accepted.passengerName == ride.name &&
-                  accepted.pickupName == ride.pickupName &&
-                  accepted.dropoffName == ride.dropoffName,
-            ),
-          );
-        });
-      }
+  Future<void> _loadDriverProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final data = await DatabaseService.getUserData(user.uid, 'Drivers');
+    if (mounted && data != null) {
+      setState(() => _driverProfile = data);
     }
   }
 
-  _RideRequest _createMockRide(
-    String name,
-    String pickupName,
-    String dropoffName,
-    LatLng pick,
-    LatLng drop,
-    double rating,
-  ) {
-    final double distKm = _distance.as(LengthUnit.Kilometer, pick, drop);
-    final double price = distKm * 25; // Rs 25 per km
 
-    return _RideRequest(
-      name: name,
-      pickupName: pickupName,
-      dropoffName: dropoffName,
-      pickup: pick,
-      dropoff: drop,
-      distanceKm: distKm,
-      price: price.round(),
-      rating: rating,
-    );
-  }
 
-  bool _isRideOnRoute(_RideRequest ride) {
-    // If we have a route, check against the route path
+  /// Returns true when the passenger pickup is within 15 km of the driver's
+  /// starting point OR within 3 km of any route segment. This is intentionally
+  /// lenient so that drivers see a healthy list of requests (InDrive style).
+  bool _isRideNearby(_RideRequest ride) {
     if (widget.routePoints.isNotEmpty) {
-      return _isPointNearRoute(ride.pickup) && _isPointNearRoute(ride.dropoff);
+      // Passenger pickup must be reasonably close to the driver's route.
+      return _isPointNearRoute(ride.pickup, thresholdKm: 3.0);
     }
-
-    // Fallback to simple radius around start/end
+    // Fallback: pickup within 15 km of driver's start point.
     final double distPickup = _distance.as(
       LengthUnit.Kilometer,
       widget.driverPickup,
       ride.pickup,
     );
-    final double distDropoff = _distance.as(
-      LengthUnit.Kilometer,
-      widget.driverDropoff,
-      ride.dropoff,
-    );
-    return distPickup < 5.0 && distDropoff < 5.0;
+    return distPickup < 15.0;
   }
 
-  bool _isPointNearRoute(LatLng point, {double thresholdKm = 2.0}) {
-    // Check if point is close to ANY point on the route
-    // Optimization: sampling every 5th point to save perf if route is huge
-    for (int i = 0; i < widget.routePoints.length; i += 5) {
+  bool _isPointNearRoute(LatLng point, {double thresholdKm = 3.0}) {
+    for (int i = 0; i < widget.routePoints.length; i += 3) {
       final double dist = _distance.as(
         LengthUnit.Kilometer,
         point,
@@ -213,21 +85,20 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
   }
 
   void _acceptRide(_RideRequest ride, int index) {
-    // Check for capacity
+    // Prevent double-tap: ignore if already being processed.
+    if (ride.rideId != null && _acceptingRideIds.contains(ride.rideId)) return;
+    if (ride.rideId != null) setState(() => _acceptingRideIds.add(ride.rideId!));
+
     if (DriverData.carCapacity < 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Car is full! Cannot accept more rides.",
-            style: GoogleFonts.outfit(),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Car is full! Cannot accept more rides.',
+            style: GoogleFonts.outfit()),
+        backgroundColor: Colors.red,
+      ));
       return;
     }
 
-    // Show Futuristic Loading Dialog
+    // Show connecting dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -239,42 +110,30 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: Colors.white.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFC153b).withValues(alpha: 0.2),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
+                    color: const Color(0xFFFC153b).withValues(alpha: 0.2),
+                    blurRadius: 20,
+                    spreadRadius: 5),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFFC153b),
-                    strokeWidth: 3,
-                  ),
-                ),
+                    width: 50,
+                    height: 50,
+                    child: CircularProgressIndicator(
+                        color: Color(0xFFFC153b), strokeWidth: 3)),
                 const SizedBox(height: 20),
-                Text(
-                  "Connecting...",
-                  style: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "Notifying ${ride.name}",
-                  style: GoogleFonts.outfit(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
-                ),
+                Text('Connecting…',
+                    style: GoogleFonts.outfit(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Notifying ${ride.name}',
+                    style: GoogleFonts.outfit(
+                        color: Colors.grey[600], fontSize: 14)),
               ],
             ),
           ),
@@ -282,40 +141,100 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
       ),
     );
 
-    // Simulate Network Delay -> Success
-    Future.delayed(const Duration(seconds: 2), () {
+    // Write to Firestore with driver details so passenger sees real info
+    () async {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading
-
-      // Decrement Capacity
-      setState(() {
-        DriverData.carCapacity -= 1;
-        _availableRides.remove(ride); // Remove from available list
-      });
-
-      // Add to Active Rides
-      bool alreadyAdded = DriverData.acceptedRides.any(
-        (r) =>
-            r.passengerName == ride.name &&
-            r.pickupName == ride.pickupName &&
-            r.dropoffName == ride.dropoffName,
-      );
-
-      if (!alreadyAdded) {
-        DriverData.acceptedRides.add(
-          AcceptedRide(
-            passengerName: ride.name,
-            pickupName: ride.pickupName,
-            dropoffName: ride.dropoffName,
-            pickup: ride.pickup,
-            dropoff: ride.dropoff,
-            price: ride.price,
-            acceptedAt: DateTime.now(),
-          ),
-        );
+      String? acceptError;
+      try {
+        if (ride.rideId != null) {
+          final driver = FirebaseAuth.instance.currentUser;
+          final profile = _driverProfile;
+          acceptError = await DatabaseService.acceptRideByDriver(
+            rideId: ride.rideId!,
+            driverUid: driver?.uid ?? '',
+            driverName: profile?['name'] as String? ?? 'Driver',
+            driverPhone: profile?['phone'] as String? ?? '',
+            vehicleModel: profile?['vehicleModel'] as String? ?? '—',
+            vehicleColor: profile?['vehicleColor'] as String? ?? '—',
+            vehiclePlate: profile?['vehicleRegistration'] as String? ?? '—',
+            driverImageUrl: (profile?['profileImageUrl'] as String?) ?? '',
+          );
+        }
+      } finally {
+        // Always release the "accepting" lock so the card can re-appear if
+        // something went wrong, and the driver can try again.
+        if (mounted && acceptError != null) {
+          setState(() => _acceptingRideIds.remove(ride.rideId));
+        }
       }
 
-      // Show Success Overlay
+      if (!mounted) return;
+      Navigator.pop(context); // close loading dialog
+
+      // Passenger cancelled before driver accepted
+      if (acceptError == 'ride_cancelled') {
+        setState(() {
+          _dismissedRideIds.add(ride.rideId!);
+          _acceptingRideIds.remove(ride.rideId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'This ride was cancelled by the passenger.',
+            style: GoogleFonts.outfit(),
+          ),
+          backgroundColor: Colors.orange,
+        ));
+        return;
+      }
+
+      // Another driver already accepted
+      if (acceptError == 'already_accepted') {
+        setState(() {
+          _dismissedRideIds.add(ride.rideId!);
+          _acceptingRideIds.remove(ride.rideId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'This ride was already accepted by another driver.',
+            style: GoogleFonts.outfit(),
+          ),
+          backgroundColor: Colors.orange,
+        ));
+        return;
+      }
+
+      if (acceptError != null) {
+        if (mounted) setState(() => _acceptingRideIds.remove(ride.rideId));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to accept ride: $acceptError',
+              style: GoogleFonts.outfit()),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+
+      setState(() {
+        DriverData.carCapacity -= 1;
+      });
+
+      // Add to in-memory accepted rides
+      final alreadyAdded = DriverData.acceptedRides.any((r) =>
+          r.passengerName == ride.name &&
+          r.pickupName == ride.pickupName &&
+          r.dropoffName == ride.dropoffName);
+      if (!alreadyAdded) {
+        DriverData.acceptedRides.add(AcceptedRide(
+          passengerName: ride.name,
+          pickupName: ride.pickupName,
+          dropoffName: ride.dropoffName,
+          pickup: ride.pickup,
+          dropoff: ride.dropoff,
+          price: ride.price,
+          acceptedAt: DateTime.now(),
+        ));
+      }
+
+      if (!mounted) return;
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
@@ -325,56 +244,42 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
           ),
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 60,
                 height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  shape: BoxShape.circle,
-                ),
+                decoration:
+                    BoxDecoration(color: Colors.green[50], shape: BoxShape.circle),
                 child: const Icon(Icons.check, color: Colors.green, size: 30),
               ),
               const SizedBox(height: 16),
-              Text(
-                "Ride Accepted!",
-                style: GoogleFonts.outfit(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Capacity Left: ${DriverData.carCapacity}",
-                style: GoogleFonts.outfit(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFFFC153b),
-                ),
-              ),
+              Text('Ride Accepted!',
+                  style: GoogleFonts.outfit(
+                      fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              Text(
-                "Navigate to ${ride.name}'s pickup location.",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
+              Text('Seats left: ${DriverData.carCapacity}',
+                  style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFFC153b))),
+              const SizedBox(height: 4),
+              Text('Navigate to ${ride.name}\'s pickup location.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                      fontSize: 13, color: Colors.grey[600])),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(ctx); // Close Sheet
-                    // Navigate to Navigation Screen
+                    Navigator.pop(ctx);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DriverNavigationScreen(
+                        builder: (_) => DriverNavigationScreen(
                           start: ride.pickup,
                           end: ride.dropoff,
                           passengerName: ride.name,
@@ -387,31 +292,33 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                     backgroundColor: const Color(0xFFFC153b),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                        borderRadius: BorderRadius.circular(16)),
                     elevation: 0,
                   ),
-                  child: Text(
-                    "Start Navigation",
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: Text('Start Navigation',
+                      style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
                 ),
               ),
             ],
           ),
         ),
       );
-    });
+    }();
   }
 
+  // Locally dismissed ride IDs — driver skips these without touching Firestore.
+  final Set<String> _dismissedRideIds = {};
+
+  // Guard against tapping Accept multiple times on the same ride.
+  final Set<String> _acceptingRideIds = {};
+
   void _declineRide(_RideRequest ride) {
-    setState(() {
-      _availableRides.remove(ride);
-    });
+    if (ride.rideId != null) {
+      setState(() => _dismissedRideIds.add(ride.rideId!));
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -427,32 +334,21 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter List
-    final displayRides = _availableRides
-        .where((r) => _isRideOnRoute(r))
-        .toList();
-
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFFF8F9FE), // very light futuristic grey
+      backgroundColor: const Color(0xFFF8F9FE),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: Container(
           margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFC153B),
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
           ),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -467,7 +363,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
       ),
       body: Stack(
         children: [
-          // Background Decor (Gradient blobs for futuristic feel)
+          // Background Decor
           Positioned(
             top: -100,
             right: -100,
@@ -486,27 +382,79 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
             ),
           ),
 
-          // Content
-          _isLoadingRides
-              ? Center(
+          // Real-time Stream Content
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: DatabaseService.getRequestedRidesStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const CircularProgressIndicator(color: Color(0xFFFC153b)),
                       const SizedBox(height: 16),
                       Text(
-                        "Finding riders along your route...",
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[600],
-                        ),
+                        "Connecting to matching service...",
+                        style: GoogleFonts.outfit(color: Colors.grey[600]),
                       ),
                     ],
                   ),
-                )
-              : displayRides.isEmpty
-              ? Center(
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              
+              // Map docs to _RideRequest, filter nearby, sort by proximity
+              final realRides = docs.map((doc) {
+                final data = doc.data();
+                final pick = LatLng(
+                  (data['pickupLat'] as num?)?.toDouble() ?? 0.0,
+                  (data['pickupLng'] as num?)?.toDouble() ?? 0.0,
+                );
+                final drop = LatLng(
+                  (data['dropoffLat'] as num?)?.toDouble() ?? 0.0,
+                  (data['dropoffLng'] as num?)?.toDouble() ?? 0.0,
+                );
+                // Ride length (pickup → dropoff)
+                final rideDistKm = _distance.as(LengthUnit.Kilometer, pick, drop);
+                // Distance from driver's start to passenger pickup (for sorting)
+                final driverToPickupKm = _distance.as(
+                  LengthUnit.Kilometer, widget.driverPickup, pick);
+
+                return _RideRequest(
+                  rideId: doc.id,
+                  userId: data['userId'] as String?,
+                  name: data['passengerName'] as String? ?? 'Rider',
+                  pickupName: data['pickupAddress'] as String? ?? 'Pickup',
+                  dropoffName: data['dropoffAddress'] as String? ?? 'Dropoff',
+                  pickup: pick,
+                  dropoff: drop,
+                  distanceKm: rideDistKm,
+                  driverToPickupKm: driverToPickupKm,
+                  price: ((data['fare'] as num?)?.toInt()) ?? (rideDistKm * 25).toInt(),
+                  rating: 5.0,
+                );
+              })
+                .where(_isRideNearby)
+                .where((r) => !_dismissedRideIds.contains(r.rideId))
+                .where((r) => !_acceptingRideIds.contains(r.rideId))
+                .toList()
+                ..sort((a, b) => a.driverToPickupKm.compareTo(b.driverToPickupKm));
+
+              // Deduplicate: one ride per passenger — keep only the first
+              // (closest/most-recent) entry per userId.
+              final seenUserIds = <String>{};
+              final uniqueRides = realRides.where((r) {
+                final key = r.userId ?? r.rideId ?? '';
+                return seenUserIds.add(key);
+              }).toList();
+
+              if (uniqueRides.isEmpty) {
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -538,25 +486,20 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                           color: Colors.grey[600],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "No matching passengers on your route yet.",
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          color: Colors.grey[400],
-                        ),
-                      ),
                     ],
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 170, 16, 40),
-                  itemCount: displayRides.length,
-                  itemBuilder: (context, index) {
-                    final ride = displayRides[index];
-                    return _buildFuturisticCard(ride, index);
-                  },
-                ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 170, 16, 40),
+                itemCount: uniqueRides.length,
+                itemBuilder: (context, index) {
+                  return _buildFuturisticCard(uniqueRides[index], index);
+                },
+              );
+            },
+          ),
 
           // Capacity Indicator
           Positioned(
@@ -725,15 +668,21 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                           ),
                         ),
                         Text(
-                          "${ride.distanceKm.toStringAsFixed(1)} KM",
+                          "${ride.distanceKm.toStringAsFixed(1)} km ride",
                           style: GoogleFonts.outfit(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: const Color(
-                              0xFFFC153b,
-                            ).withValues(alpha: 0.8),
+                            color: const Color(0xFFFC153b).withValues(alpha: 0.8),
                           ),
                         ),
+                        if (ride.driverToPickupKm > 0)
+                          Text(
+                            "${ride.driverToPickupKm.toStringAsFixed(1)} km away",
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -887,22 +836,30 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
 }
 
 class _RideRequest {
+  final String? rideId;
+  final String? userId;
   final String name;
   final String pickupName;
   final String dropoffName;
   final LatLng pickup;
   final LatLng dropoff;
+  /// Distance of the passenger's ride (pickup → dropoff).
   final double distanceKm;
+  /// Distance from the driver's start point to the passenger's pickup.
+  final double driverToPickupKm;
   final int price;
   final double rating;
 
   _RideRequest({
+    this.rideId,
+    this.userId,
     required this.name,
     required this.pickupName,
     required this.dropoffName,
     required this.pickup,
     required this.dropoff,
     required this.distanceKm,
+    this.driverToPickupKm = 0.0,
     required this.price,
     required this.rating,
   });

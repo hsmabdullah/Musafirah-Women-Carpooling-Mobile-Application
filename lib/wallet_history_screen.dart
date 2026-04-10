@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'wallet_repository.dart';
 import 'rider_profile_screen.dart';
+import 'screens/add_funds_screen.dart';
 
 class WalletHistoryScreen extends StatefulWidget {
   const WalletHistoryScreen({super.key});
@@ -31,16 +32,11 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
   }
 
   Future<void> _addFunds() async {
-    WalletRepository.addFunds(amount: 500, source: 'Manual Top-up');
-    setState(_loadData);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'PKR 500 credited to your wallet.',
-          style: GoogleFonts.inter(),
-        ),
-      ),
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddFundsScreen()),
     );
+    if (result == true) setState(_loadData);
   }
 
   void _viewStatements() {
@@ -59,7 +55,7 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
     final metrics = _WalletMetrics.fromContext(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: const Color(0xFFFC153b),
         elevation: 0,
@@ -110,13 +106,17 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
   Widget _buildBalanceCard(_WalletMetrics metrics) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFC153b), Color(0xFFD4002A)],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFFFC153b).withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -126,77 +126,80 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.account_balance_wallet,
-                color: Color(0xFFFC153b),
-              ),
-              SizedBox(width: metrics.smallSpacing),
-              Text(
-                'Current Balance',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
-                  fontSize: metrics.cardTitleFont,
-                ),
-              ),
+              const Icon(Icons.account_balance_wallet_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text('Musafirah Wallet',
+                  style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 14)),
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.info_outline, color: Colors.grey),
-                onPressed: () {},
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('Active',
+                    style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
               ),
             ],
           ),
-          SizedBox(height: metrics.smallSpacing),
-          Text(
-            'Available Funds',
-            style: GoogleFonts.inter(
-              color: Colors.grey[600],
-              fontSize: metrics.smallFont,
-            ),
-          ),
-          SizedBox(height: metrics.smallSpacing / 2),
-          Text(
-            'Rs. ${_balance.toStringAsFixed(0)}',
-            style: GoogleFonts.inter(
-              fontSize: metrics.balanceFont,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFFFC153b),
-            ),
-          ),
-          SizedBox(height: metrics.smallSpacing * 2),
+          const SizedBox(height: 16),
+          Text('Available Balance',
+              style: GoogleFonts.outfit(
+                  color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
+          const SizedBox(height: 4),
+          Text('Rs ${_balance.toStringAsFixed(0)}',
+              style: GoogleFonts.outfit(
+                  fontSize: metrics.balanceFont,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white)),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: ElevatedButton(
-                  onPressed: _addFunds,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFC153b),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(metrics.buttonRadius),
+                child: GestureDetector(
+                  onTap: _addFunds,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                  child: Text(
-                    'Add Funds',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    child: Center(
+                      child: Text('+ Add Funds',
+                          style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFFC153b),
+                              fontSize: 13)),
+                    ),
                   ),
                 ),
               ),
-              SizedBox(width: metrics.smallSpacing),
+              const SizedBox(width: 10),
               Expanded(
-                child: OutlinedButton(
-                  onPressed: _viewStatements,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFC153b),
-                    side: const BorderSide(color: Color(0xFFFC153b)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(metrics.buttonRadius),
+                child: GestureDetector(
+                  onTap: _viewStatements,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.4)),
                     ),
-                  ),
-                  child: FittedBox(
-                    child: Text(
-                      'View Statements',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    child: Center(
+                      child: Text('Statements',
+                          style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              fontSize: 13)),
                     ),
                   ),
                 ),
@@ -209,232 +212,312 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
   }
 
   Widget _buildTabs(_WalletMetrics metrics) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () {
-              if (_showTransactions) return;
-              setState(() {
-                _showTransactions = true;
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _showTransactions
-                  ? const Color(0xFFFC153b)
-                  : Colors.white,
-              foregroundColor: _showTransactions
-                  ? Colors.white
-                  : const Color(0xFFFC153b),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(metrics.buttonRadius),
-                side: const BorderSide(color: Color(0xFFFC153b)),
-              ),
-            ),
-            child: Text(
-              'Transactions',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F4F8),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          _TabButton(
+            label: 'Transactions',
+            icon: Icons.receipt_long_rounded,
+            selected: _showTransactions,
+            onTap: () => setState(() => _showTransactions = true),
           ),
-        ),
-        SizedBox(width: metrics.smallSpacing),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () {
-              if (!_showTransactions) return;
-              setState(() {
-                _showTransactions = false;
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: !_showTransactions
-                  ? const Color(0xFFFC153b)
-                  : Colors.white,
-              foregroundColor: !_showTransactions
-                  ? Colors.white
-                  : const Color(0xFFFC153b),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(metrics.buttonRadius),
-                side: const BorderSide(color: Color(0xFFFC153b)),
-              ),
-            ),
-            child: Text(
-              'Ride History',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
+          _TabButton(
+            label: 'Ride History',
+            icon: Icons.directions_car_rounded,
+            selected: !_showTransactions,
+            onTap: () => setState(() => _showTransactions = false),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildTransactionsList(_WalletMetrics metrics) {
     if (_transactions.isEmpty) {
-      return Center(
-        child: Text(
-          'No transactions yet.',
-          style: GoogleFonts.inter(color: Colors.grey[600]),
-        ),
-      );
+      return _EmptyState(
+          icon: Icons.receipt_long_rounded, label: 'No transactions yet');
     }
     return ListView.separated(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(
-        top: metrics.sectionSpacingSmall,
-        bottom: metrics.sectionSpacingSmall + metrics.bottomPadding + 72,
-      ),
+          top: 12,
+          bottom: metrics.sectionSpacingSmall + metrics.bottomPadding + 72),
       itemCount: _transactions.length,
-      separatorBuilder: (_, __) => SizedBox(height: metrics.smallSpacing),
-      itemBuilder: (_, index) {
-        final entry = _transactions[index];
-        return _WalletEntryTile(entry: entry, metrics: metrics);
-      },
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _WalletEntryTile(entry: _transactions[i]),
     );
   }
 
   Widget _buildRideHistoryList(_WalletMetrics metrics) {
     if (_rideHistory.isEmpty) {
-      return Center(
-        child: Text(
-          'No rides recorded yet.',
-          style: GoogleFonts.inter(color: Colors.grey[600]),
-        ),
-      );
+      return _EmptyState(
+          icon: Icons.directions_car_rounded, label: 'No rides recorded yet');
     }
     return ListView.separated(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(
-        top: metrics.sectionSpacingSmall,
-        bottom: metrics.sectionSpacingSmall + metrics.bottomPadding + 72,
-      ),
+          top: 12,
+          bottom: metrics.sectionSpacingSmall + metrics.bottomPadding + 72),
       itemCount: _rideHistory.length,
-      separatorBuilder: (_, __) => SizedBox(height: metrics.smallSpacing),
-      itemBuilder: (_, index) {
-        final ride = _rideHistory[index];
-        return _RideHistoryTile(ride: ride, metrics: metrics);
-      },
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _RideHistoryTile(ride: _rideHistory[i]),
     );
   }
 
   Widget _buildBottomNav(_WalletMetrics metrics) {
-    return BottomNavigationBar(
-      currentIndex: _bottomNavIndex,
-      backgroundColor: Colors.white,
-      elevation: 10,
-      selectedItemColor: const Color(0xFFFC153b),
-      unselectedItemColor: Colors.grey[600],
-      selectedFontSize: (metrics.smallFont + 1).clamp(12.0, 16.0),
-      unselectedFontSize: metrics.smallFont.clamp(11.0, 15.0),
-      selectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-      unselectedLabelStyle: GoogleFonts.inter(),
-      type: BottomNavigationBarType.fixed,
-      onTap: (index) {
-        setState(() => _bottomNavIndex = index);
-        switch (index) {
-          case 0:
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            break;
-          case 1:
-            break;
-          case 2:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RiderProfileScreen()),
-            ).then((_) {
-              if (mounted) {
-                setState(() => _bottomNavIndex = 1);
-              }
-            });
-            break;
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Home',
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -2))
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Icons.home_rounded,
+                label: 'Home',
+                selected: _bottomNavIndex == 0,
+                onTap: () {
+                  setState(() => _bottomNavIndex = 0);
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                },
+              ),
+              _NavItem(
+                icon: Icons.account_balance_wallet_rounded,
+                label: 'Wallet',
+                selected: _bottomNavIndex == 1,
+                onTap: () => setState(() => _bottomNavIndex = 1),
+              ),
+              _NavItem(
+                icon: Icons.person_rounded,
+                label: 'Profile',
+                selected: _bottomNavIndex == 2,
+                onTap: () {
+                  setState(() => _bottomNavIndex = 2);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const RiderProfileScreen()),
+                  ).then((_) {
+                    if (mounted) setState(() => _bottomNavIndex = 1);
+                  });
+                },
+              ),
+            ],
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          activeIcon: Icon(Icons.account_balance_wallet),
-          label: 'Wallet',
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TabButton(
+      {required this.label,
+      required this.icon,
+      required this.selected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2))
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 15,
+                  color: selected
+                      ? const Color(0xFFFC153b)
+                      : Colors.grey[500]),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight:
+                          selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? const Color(0xFFFC153b)
+                          : Colors.grey[500])),
+            ],
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          activeIcon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _EmptyState({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFC153b).withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: const Color(0xFFFC153b), size: 28),
+          ),
+          const SizedBox(height: 12),
+          Text(label,
+              style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF64748B))),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _NavItem(
+      {required this.icon,
+      required this.label,
+      required this.selected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: selected
+                  ? const Color(0xFFFC153b).withValues(alpha: 0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon,
+                color:
+                    selected ? const Color(0xFFFC153b) : Colors.grey[400],
+                size: 22),
+          ),
+          const SizedBox(height: 2),
+          Text(label,
+              style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? const Color(0xFFFC153b)
+                      : Colors.grey[500])),
+        ],
+      ),
     );
   }
 }
 
 class _WalletEntryTile extends StatelessWidget {
-  const _WalletEntryTile({required this.entry, required this.metrics});
-
+  const _WalletEntryTile({required this.entry});
   final WalletEntry entry;
-  final _WalletMetrics metrics;
 
   @override
   Widget build(BuildContext context) {
     final isCredit = entry.isCredit;
-    final color = isCredit ? Colors.green : const Color(0xFFFC153b);
-    final icon = isCredit ? Icons.arrow_upward : Icons.arrow_downward;
+    final color = isCredit ? Colors.green[600]! : const Color(0xFFFC153b);
+    final icon = isCredit
+        ? Icons.arrow_downward_rounded
+        : Icons.arrow_upward_rounded;
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
         ],
       ),
-      padding: EdgeInsets.all(metrics.cardPadding),
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(metrics.iconPadding / 1.5),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: metrics.iconSize * 0.8),
+            child: Icon(icon, color: color, size: 20),
           ),
-          SizedBox(width: metrics.smallSpacing * 1.5),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  entry.title,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    fontSize: metrics.cardSubtitleFont,
-                  ),
-                ),
-                SizedBox(height: metrics.smallSpacing / 2),
-                Text(
-                  entry.subtitle,
-                  style: GoogleFonts.inter(
-                    color: Colors.grey[600],
-                    fontSize: metrics.smallFont,
-                  ),
-                ),
+                Text(entry.title,
+                    style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: const Color(0xFF0F172A))),
+                const SizedBox(height: 2),
+                Text(entry.subtitle,
+                    style: GoogleFonts.outfit(
+                        color: Colors.grey[500], fontSize: 12)),
               ],
             ),
           ),
-          SizedBox(width: metrics.smallSpacing),
           Text(
-            '${isCredit ? '+ ' : '- '}Rs. ${entry.amount.abs().toStringAsFixed(0)}',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w700,
-              color: color,
-              fontSize: metrics.cardSubtitleFont,
-            ),
+            '${isCredit ? '+' : '-'} Rs ${entry.amount.abs().toStringAsFixed(0)}',
+            style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                color: color,
+                fontSize: 14),
           ),
         ],
       ),
@@ -443,70 +526,94 @@ class _WalletEntryTile extends StatelessWidget {
 }
 
 class _RideHistoryTile extends StatelessWidget {
-  const _RideHistoryTile({required this.ride, required this.metrics});
-
+  const _RideHistoryTile({required this.ride});
   final RideHistoryEntry ride;
-  final _WalletMetrics metrics;
 
   @override
   Widget build(BuildContext context) {
+    final isCompleted = ride.status.toLowerCase().contains('complete');
+    final statusColor = isCompleted ? Colors.green[600]! : Colors.orange[600]!;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(metrics.cardRadius),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
         ],
       ),
-      padding: EdgeInsets.all(metrics.cardPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(14),
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFC153b).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.directions_car_rounded,
+                color: Color(0xFFFC153b), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(ride.pickup,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: const Color(0xFF0F172A))),
+                    ),
+                    const Icon(Icons.arrow_forward_rounded,
+                        size: 12, color: Color(0xFF94A3B8)),
+                  ],
+                ),
+                Text(ride.dropoff,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                        fontSize: 12, color: Colors.grey[500])),
+                const SizedBox(height: 4),
+                Text(WalletRepository.formatTimestamp(ride.timestamp),
+                    style: GoogleFonts.outfit(
+                        fontSize: 11, color: Colors.grey[400])),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(
-                child: Text(
-                  '${ride.pickup} → ${ride.dropoff}',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    fontSize: metrics.cardSubtitleFont,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              SizedBox(width: metrics.smallSpacing),
-              Text(
-                'Rs. ${ride.fare.toStringAsFixed(0)}',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFFC153b),
-                ),
+              Text('Rs ${ride.fare.toStringAsFixed(0)}',
+                  style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFFC153b),
+                      fontSize: 14)),
+              const SizedBox(height: 4),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6)),
+                child: Text(ride.status,
+                    style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: statusColor)),
               ),
             ],
           ),
-          SizedBox(height: metrics.smallSpacing / 2),
-          Text(
-            WalletRepository.formatTimestamp(ride.timestamp),
-            style: GoogleFonts.inter(
-              color: Colors.grey[600],
-              fontSize: metrics.smallFont,
-            ),
-          ),
-          if (ride.status.isNotEmpty) ...[
-            SizedBox(height: metrics.smallSpacing / 2),
-            Text(
-              ride.status,
-              style: GoogleFonts.inter(
-                color: Colors.green,
-                fontSize: metrics.smallFont,
-              ),
-            ),
-          ],
         ],
       ),
     );

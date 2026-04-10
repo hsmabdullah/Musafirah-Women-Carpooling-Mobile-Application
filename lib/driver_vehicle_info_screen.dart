@@ -4,7 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'cnic_verification_screen.dart'; // Navigates to CNIC next
 import 'package:musafirah_app/services/auth_service.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'user_choice.dart';
 import 'package:musafirah_app/driver_data.dart';
 
 class DriverVehicleInfoScreen extends StatefulWidget {
@@ -26,7 +27,11 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
   bool _isLoading = false;
 
   Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 600,
+      imageQuality: 25,
+    );
     if (image != null) {
       setState(() {
         _carImage = File(image.path);
@@ -52,14 +57,10 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
       final user = AuthService.currentUser;
       if (user == null) return;
 
-      // Upload image
-      debugPrint("Uploading car image...");
-      String? carImageUrl = await AuthService.uploadImage(
-        'users/${user.uid}/car_image.jpg',
-        _carImage!,
-      );
-
-      if (carImageUrl == null) throw 'Car image upload failed';
+      // Encode car image to Base64 with aggressive compression
+      debugPrint("Encoding car image...");
+      String? carImageUrl = await AuthService.compressAndEncodeImage(_carImage!);
+      if (carImageUrl == null) throw 'Car image encoding failed';
 
       final cap = int.tryParse(_capacityController.text) ?? 4;
       DriverData.carCapacity = cap;
@@ -113,6 +114,44 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
         ),
         backgroundColor: const Color(0xFFFC153b),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text(
+                      'Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed == true) {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UserChoice()),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

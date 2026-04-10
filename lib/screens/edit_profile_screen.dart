@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 import 'package:musafirah_app/services/database_service.dart';
 
 const _kRed = Color(0xFFFC153B);
@@ -25,6 +30,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _emailController;
   late TextEditingController _emergencyController;
   bool _isSaving = false;
+  File? _newProfileImage;
+  bool _isUploadingPhoto = false;
 
   @override
   void initState() {
@@ -45,19 +52,80 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _pickProfileImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Change Profile Photo',
+                style: GoogleFonts.outfit(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: _kText)),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: _kRed),
+              title: Text('Take a photo', style: GoogleFonts.outfit()),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.photo_library_rounded, color: _kRed),
+              title: Text('Choose from gallery', style: GoogleFonts.outfit()),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+        source: source, imageQuality: 70, maxWidth: 600);
+    if (picked != null && mounted) {
+      setState(() => _newProfileImage = File(picked.path));
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     setState(() => _isSaving = true);
+
+    final fields = <String, dynamic>{
+      'name': _nameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'emergencyContact': _emergencyController.text.trim(),
+    };
+
+    // Encode and save new profile image if one was picked
+    if (_newProfileImage != null) {
+      setState(() => _isUploadingPhoto = true);
+      final encoded =
+          await AuthService.compressAndEncodeImage(_newProfileImage!);
+      setState(() => _isUploadingPhoto = false);
+      if (encoded != null) fields['profileImageUrl'] = encoded;
+    }
+
     final err = await DatabaseService.updatePassenger(
       uid: user.uid,
-      fields: {
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'emergencyContact': _emergencyController.text.trim(),
-      },
+      fields: fields,
     );
     if (!mounted) return;
     setState(() => _isSaving = false);
@@ -189,45 +257,87 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildAvatarSection() {
-    final imageUrl = widget.userData['profileImageUrl'] ?? '';
     return Center(
-      child: Stack(
+      child: Column(
         children: [
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: _kRed, width: 3),
-              color: Colors.grey[200],
-            ),
-            child: ClipOval(
-              child: imageUrl.isNotEmpty
-                  ? Image.network(imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.person, size: 44, color: _kSubText))
-                  : const Icon(Icons.person, size: 44, color: _kSubText),
+          GestureDetector(
+            onTap: _pickProfileImage,
+            child: Stack(
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _kRed, width: 3),
+                    color: Colors.grey[200],
+                  ),
+                  child: ClipOval(child: _buildCurrentAvatar()),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: _kRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: _isUploadingPhoto
+                        ? const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Icon(Icons.camera_alt_outlined,
+                            color: Colors.white, size: 14),
+                  ),
+                ),
+              ],
             ),
           ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: _kRed,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: const Icon(Icons.camera_alt_outlined,
-                  color: Colors.white, size: 14),
-            ),
-          ),
+          const SizedBox(height: 8),
+          Text('Tap to change photo',
+              style: GoogleFonts.outfit(fontSize: 12, color: _kSubText)),
         ],
       ),
     );
+  }
+
+  Widget _buildCurrentAvatar() {
+    // Newly picked local file takes priority
+    if (_newProfileImage != null) {
+      return Image.file(_newProfileImage!, fit: BoxFit.cover);
+    }
+    // Existing saved image (URL or Base64)
+    final saved = (widget.userData['profileImageUrl'] as String?)
+            ?.isNotEmpty ==
+        true
+        ? widget.userData['profileImageUrl'] as String
+        : (widget.userData['image_selfie'] as String?) ?? '';
+
+    if (saved.isEmpty) {
+      return const Icon(Icons.person, size: 44, color: _kSubText);
+    }
+    if (saved.startsWith('data:image')) {
+      try {
+        final bytes = _base64Bytes(saved);
+        return Image.memory(bytes, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.person, size: 44, color: _kSubText));
+      } catch (_) {
+        return const Icon(Icons.person, size: 44, color: _kSubText);
+      }
+    }
+    return Image.network(saved, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.person, size: 44, color: _kSubText));
+  }
+
+  Uint8List _base64Bytes(String dataUri) {
+    return base64Decode(dataUri.split(',').last);
   }
 
   Widget _buildSectionLabel(String text) {

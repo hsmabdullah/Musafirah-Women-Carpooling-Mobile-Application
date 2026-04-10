@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "931957871165",
-    "project_id": "musafirah-app",
-    "storage_bucket": "musafirah-app.firebasestorage.app"
+    "project_number": "950461159376",
+    "project_id": "musafirah-db-updated",
+    "storage_bucket": "musafirah-db-updated.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:931957871165:android:48d8117474cc69e3709054",
+        "mobilesdk_app_id": "1:950461159376:android:54515dfa7396b70c774bd5",
         "android_client_info": {
           "package_name": "com.example.musafirah_app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDRHFTnBo3H17LPrHJveMU46TBHUDxAyvo"
+          "current_key": "AIzaSyAJnkA306UmneqPezTxkk4oB1L7Qy567tc"
         }
       ],
       "services": {

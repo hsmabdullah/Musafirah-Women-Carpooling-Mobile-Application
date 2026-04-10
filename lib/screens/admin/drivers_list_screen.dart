@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'driver_details_screen.dart';
 import 'widgets/bottom_nav.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 
 class DriversListScreen extends StatefulWidget {
   const DriversListScreen({super.key});
@@ -9,265 +12,311 @@ class DriversListScreen extends StatefulWidget {
   State<DriversListScreen> createState() => _DriversListScreenState();
 }
 
-class _DriversListScreenState extends State<DriversListScreen> {
+class _DriversListScreenState extends State<DriversListScreen>
+    with SingleTickerProviderStateMixin {
   int _currentNavIndex = 1;
   final _searchController = TextEditingController();
+  String _searchQuery = '';
+  late TabController _tabController;
 
-  // Sample driver data
-  final List<Map<String, dynamic>> _allDrivers = [
-    {
-      'name': 'Aisha Khan',
-      'status': 'Verified',
-      'vehicle': 'Suzuki Cultus (ABC-123)',
-      'image': 'assets/images/driver1.png',
-    },
-    {
-      'name': 'Fatima Ali',
-      'status': 'Pending',
-      'vehicle': 'Honda City (DEF-456)',
-      'image': 'assets/images/driver2.png',
-    },
-    {
-      'name': 'Zainab Qureshi',
-      'status': 'Verified',
-      'vehicle': 'Toyota Corolla (GHI-789)',
-      'image': 'assets/images/driver3.png',
-    },
-    {
-      'name': 'Sana Javed',
-      'status': 'Rejected',
-      'vehicle': 'Kia Picanto (JKL-012)',
-      'image': 'assets/images/driver4.png',
-    },
-    {
-      'name': 'Hina Masood',
-      'status': 'Pending',
-      'vehicle': 'Hyundai Elantra (MNO-345)',
-      'image': 'assets/images/driver5.png',
-    },
-    {
-      'name': 'Maryam Sheikh',
-      'status': 'Verified',
-      'vehicle': 'Toyota Vitz (PQR-678)',
-      'image': 'assets/images/driver1.png',
-    },
-    {
-      'name': 'Nida Ahmed',
-      'status': 'Pending',
-      'vehicle': 'Suzuki Swift (STU-901)',
-      'image': 'assets/images/driver2.png',
-    },
-    {
-      'name': 'Rabia Hassan',
-      'status': 'Verified',
-      'vehicle': 'Honda Civic (VWX-234)',
-      'image': 'assets/images/driver3.png',
-    },
-  ];
+  static const _primaryColor = Color(0xFFFC153B);
+  static const _filters = ['All', 'Pending', 'Approved', 'Rejected', 'Blocked'];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _filters.length, vsync: this);
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.toLowerCase());
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'verified':
+      case 'approved':
         return Colors.green;
       case 'pending':
         return Colors.orange;
       case 'rejected':
         return Colors.red;
+      case 'blocked':
+        return Colors.deepPurple;
       default:
         return Colors.grey;
     }
   }
 
   void _handleNavigation(int index) {
-    setState(() {
-      _currentNavIndex = index;
-    });
+    if (index == _currentNavIndex) return;
+    setState(() => _currentNavIndex = index);
+    if (index == 0) Navigator.pushReplacementNamed(context, '/dashboard');
+    if (index == 2) Navigator.pushReplacementNamed(context, '/riders');
+    if (index == 3) Navigator.pushReplacementNamed(context, '/rides');
+    if (index == 4) Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+  }
 
-    if (index == 0) {
-      // Dashboard
-      Navigator.pushReplacementNamed(context, '/dashboard');
-    } else if (index == 1) {
-      // Already on Drivers screen
-    } else if (index == 2) {
-      // Riders
-      Navigator.pushReplacementNamed(context, '/riders');
-    } else if (index == 3) {
-      // Logout
-      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-    }
+  List<QueryDocumentSnapshot> _filterDocs(
+    List<QueryDocumentSnapshot> docs,
+    String filter,
+  ) {
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final name = (data['name'] ?? '').toString().toLowerCase();
+      if (!name.contains(_searchQuery)) return false;
+      if (filter == 'All') return true;
+      if (filter == 'Blocked') return data['isBlocked'] == true;
+      return (data['status'] ?? '').toString().toLowerCase() ==
+          filter.toLowerCase();
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFF1744),
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'All Drivers',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        automaticallyImplyLeading: false,
+        backgroundColor: _primaryColor,
+        elevation: 0,
+        title: Text(
+          'Member Verification',
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
         centerTitle: true,
-        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13),
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: _filters.map((f) => Tab(text: f)).toList(),
+        ),
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Column(
-                children: [
-                  // Search Bar
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search drivers...',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              children: [
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      style: GoogleFonts.outfit(),
+                      decoration: InputDecoration(
+                        hintText: 'Search by member name...',
+                        hintStyle: GoogleFonts.outfit(color: Colors.grey.shade400, fontSize: 14),
+                        prefixIcon: Icon(Icons.search_rounded, color: _primaryColor.withValues(alpha: 0.7)),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
                     ),
                   ),
-                  // Drivers List
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _allDrivers.length,
-                      itemBuilder: (context, index) {
-                        final driver = _allDrivers[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(12),
-                            leading: CircleAvatar(
-                              radius: 28,
-                              backgroundImage: AssetImage(
-                                driver['image'] as String,
-                              ),
-                              onBackgroundImageError: (_, __) {},
-                              child: const Icon(Icons.person),
-                            ),
-                            title: Text(
-                              driver['name'] as String,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
+                ),
+                
+                // Tab content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: _filters.map((filter) {
+                      return StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('Drivers')
+                            .orderBy('createdAt', descending: true)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Center(child: Text('Error loading data', style: GoogleFonts.outfit()));
+                          }
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator(color: _primaryColor));
+                          }
+
+                          final docs = _filterDocs(snapshot.data!.docs, filter);
+
+                          if (docs.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_search_rounded, size: 80, color: Colors.grey.shade200),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No members found',
+                                    style: GoogleFonts.outfit(color: Colors.grey.shade400, fontSize: 16),
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: _getStatusColor(
-                                      driver['status'] as String,
-                                    ).withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    driver['status'] as String,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: _getStatusColor(
-                                        driver['status'] as String,
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            itemCount: docs.length,
+                            itemBuilder: (context, index) {
+                              final doc = docs[index];
+                              final driver = doc.data() as Map<String, dynamic>;
+                              final status = driver['status'] ?? 'pending';
+                              final isBlocked = driver['isBlocked'] == true;
+                              final displayStatus = isBlocked ? 'blocked' : status;
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                elevation: 0.5,
+                                color: Colors.white,
+                                shadowColor: Colors.black.withValues(alpha: 0.1),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.1), width: 1),
+                                ),
+                                child: InkWell(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => DriverDetailsScreen(
+                                        driverUid: doc.id,
+                                        driverData: driver,
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.directions_car,
-                                      size: 16,
-                                      color: Colors.grey,
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Row(
+                                      children: [
+                                        // Leading Profile
+                                        Stack(
+                                          children: [
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: Colors.grey.shade100, width: 1.5),
+                                              ),
+                                              child: CircleAvatar(
+                                                radius: 28,
+                                                backgroundColor: Colors.grey.shade50,
+                                                backgroundImage: AuthService.getImageProvider(
+                                                  driver['profileImageUrl'] ??
+                                                      driver['image_selfie'] ??
+                                                      '',
+                                                ),
+                                                onBackgroundImageError: (_, __) {},
+                                                child: (driver['profileImageUrl'] == null && driver['image_selfie'] == null)
+                                                    ? const Icon(Icons.person, color: Colors.grey)
+                                                    : null,
+                                              ),
+                                            ),
+                                            if (isBlocked)
+                                              Positioned(
+                                                right: -2,
+                                                bottom: -2,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: const BoxDecoration(
+                                                    color: Colors.deepPurple,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(Icons.block, size: 10, color: Colors.white),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 16),
+                                        
+                                        // Title & Subtitle
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                driver['name'] ?? 'Musafirah Member',
+                                                style: GoogleFonts.outfit(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                        horizontal: 8, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: _getStatusColor(displayStatus).withValues(alpha: 0.1),
+                                                      borderRadius: BorderRadius.circular(20),
+                                                    ),
+                                                    child: Text(
+                                                      displayStatus.toUpperCase(),
+                                                      style: GoogleFonts.outfit(
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: _getStatusColor(displayStatus),
+                                                        letterSpacing: 0.5,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Icon(Icons.directions_car_filled_rounded, size: 12, color: Colors.grey.shade400),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      '${driver['car_model'] ?? driver['carModel'] ?? 'No vehicle'}',
+                                                      style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        
+                                        // Trailing
+                                        const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+                                      ],
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      driver['vehicle'] as String,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            trailing: const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16,
-                              color: Colors.grey,
-                            ),
-                            onTap: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => DriverDetailsScreen(
-                                    driverName: driver['name'] as String,
-                                    initialStatus: driver['status'] as String,
                                   ),
                                 ),
                               );
-                              if (result != null && mounted) {
-                                setState(() {
-                                  final index = _allDrivers.indexWhere(
-                                    (d) => d['name'] == driver['name'],
-                                  );
-                                  if (index != -1) {
-                                    _allDrivers[index]['status'] = result;
-                                  }
-                                });
-                              }
                             },
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      );
+                    }).toList(),
                   ),
-                ],
-              ),
-            );
-          },
+                ),
+              ],
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: BottomNav(

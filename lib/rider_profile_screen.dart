@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,13 +9,17 @@ import 'package:musafirah_app/screens/edit_profile_screen.dart';
 import 'package:musafirah_app/screens/support_screen.dart';
 import 'package:musafirah_app/screens/privacy_security_screen.dart';
 import 'package:musafirah_app/user_choice.dart';
+import 'package:musafirah_app/providers/theme_provider.dart';
+import 'package:provider/provider.dart';
 
 const _kRed = Color(0xFFFC153B);
 const _kRedDark = Color(0xFFD4002A);
-const _kBg = Color(0xFFF1F4F8);
-const _kCard = Colors.white;
-const _kText = Color(0xFF0F172A);
-const _kSubText = Color(0xFF64748B);
+// These are updated at the start of every build() by _RiderProfileScreenState
+// so that all sub-widgets (including separate StatelessWidget classes below)
+// automatically get theme-aware colors without requiring parameter drilling.
+Color _kCard = Colors.white;
+Color _kText = const Color(0xFF0F172A);
+Color _kSubText = const Color(0xFF64748B);
 
 class RiderProfileScreen extends StatefulWidget {
   const RiderProfileScreen({super.key});
@@ -56,22 +61,33 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
   String get _phone => _userData?['phone'] ?? '';
   double get _rating => (_userData?['rating'] as num?)?.toDouble() ?? 0.0;
   int get _totalRides => (_userData?['totalRides'] as int?) ?? 0;
-  String get _profileImageUrl => _userData?['profileImageUrl'] ?? '';
+  /// Returns the best available image string — prefers the manually set
+  /// profileImageUrl, falls back to the registration selfie (image_selfie).
+  String get _profileImageUrl =>
+      (_userData?['profileImageUrl'] as String?)?.isNotEmpty == true
+          ? _userData!['profileImageUrl'] as String
+          : (_userData?['image_selfie'] as String?) ?? '';
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isTablet = size.width > 600;
 
+    // Sync theme-aware colors before building any sub-widgets.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    _kCard = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    _kText = isDark ? Colors.white : const Color(0xFF0F172A);
+    _kSubText = isDark ? Colors.grey.shade400 : const Color(0xFF64748B);
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: _kBg,
-        body: Center(child: CircularProgressIndicator(color: _kRed)),
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator(color: _kRed)),
       );
     }
 
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeroHeader(context),
@@ -247,14 +263,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             border: Border.all(color: Colors.white, width: 3),
             color: Colors.white24,
           ),
-          child: ClipOval(
-            child: _profileImageUrl.isNotEmpty
-                ? Image.network(_profileImageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.person, size: 40, color: Colors.white))
-                : const Icon(Icons.person, size: 40, color: Colors.white),
-          ),
+          child: ClipOval(child: _buildAvatarImage(72)),
         ),
         Positioned(
           bottom: 2,
@@ -271,6 +280,26 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildAvatarImage(double size) {
+    final url = _profileImageUrl;
+    if (url.isEmpty) {
+      return const Icon(Icons.person, size: 40, color: Colors.white);
+    }
+    if (url.startsWith('data:image')) {
+      try {
+        final bytes = base64Decode(url.split(',').last);
+        return Image.memory(bytes, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.person, size: 40, color: Colors.white));
+      } catch (_) {
+        return const Icon(Icons.person, size: 40, color: Colors.white);
+      }
+    }
+    return Image.network(url, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.person, size: 40, color: Colors.white));
   }
 
   Widget _buildStatsRow() {
@@ -387,6 +416,24 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             context,
             MaterialPageRoute(
                 builder: (_) => const PrivacySecurityScreen()),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Consumer<ThemeProvider>(
+          builder: (context, themeProvider, _) => _SettingsRow(
+            icon: themeProvider.isDark
+                ? Icons.light_mode_rounded
+                : Icons.dark_mode_rounded,
+            iconColor: const Color(0xFF8B5CF6),
+            iconBg: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+            title: 'Night Mode',
+            subtitle: themeProvider.isDark ? 'On' : 'Off',
+            trailing: Switch(
+              value: themeProvider.isDark,
+              onChanged: (_) => themeProvider.toggle(),
+              activeThumbColor: const Color(0xFF8B5CF6),
+            ),
+            onTap: () => themeProvider.toggle(),
           ),
         ),
       ],
@@ -576,7 +623,7 @@ class _FirestoreRideTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                     ),
-                    const Icon(Icons.arrow_forward_rounded,
+                    Icon(Icons.arrow_forward_rounded,
                         size: 13, color: _kSubText),
                     Expanded(
                       child: Text(dropoff,

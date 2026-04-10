@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'geo_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Musafirah – DatabaseService
@@ -712,6 +713,268 @@ class DatabaseService {
       return 'Error: ${e.message}';
     } catch (e) {
       return 'Error: ${e.toString()}';
+    }
+  }
+
+  /// Real-time stream for a single ride document — used by the passenger
+  /// waiting screen to detect when a driver accepts the ride.
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> getRideStream(
+      String rideId) {
+    return _db.collection('Rides').doc(rideId).snapshots();
+  }
+
+  /// Called by the driver when accepting a ride request. Uses a Firestore
+  /// transaction to atomically verify the ride is still 'requested' before
+  /// writing driver details — prevents two drivers accepting the same ride.
+  ///
+  /// Returns null on success, an error string on failure.
+  /// Returns 'already_accepted' if another driver got there first.
+  static Future<String?> acceptRideByDriver({
+    required String rideId,
+    required String driverUid,
+    required String driverName,
+    required String driverPhone,
+    required String vehicleModel,
+    required String vehicleColor,
+    required String vehiclePlate,
+    String driverImageUrl = '',
+  }) async {
+    try {
+      final rideRef = _db.collection('Rides').doc(rideId);
+      String? txError;
+
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(rideRef);
+        if (!snap.exists) {
+          txError = 'ride_not_found';
+          return;
+        }
+        final status = snap.data()?['status'] as String? ?? '';
+        if (status == 'cancelled') {
+          txError = 'ride_cancelled';
+          return;
+        }
+        if (status != 'requested') {
+          txError = 'already_accepted';
+          return;
+        }
+        tx.update(rideRef, {
+          'status': 'accepted',
+          'driverId': driverUid,
+          'driverName': driverName,
+          'driverPhone': driverPhone,
+          'vehicleModel': vehicleModel,
+          'vehicleColor': vehicleColor,
+          'vehiclePlate': vehiclePlate,
+          'driverImageUrl': driverImageUrl,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+
+      return txError;
+    } on FirebaseException catch (e) {
+      return 'Ride accept failed [${e.code}]: ${e.message}';
+    } catch (e) {
+      return 'Ride accept failed: $e';
+    }
+  }
+
+  /// Cancels a ride request. Can be called by passenger or system.
+  static Future<String?> cancelRide(String rideId) async {
+    try {
+      await _db.collection('Rides').doc(rideId).update({
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return null;
+    } on FirebaseException catch (e) {
+      return 'Cancel failed [${e.code}]: ${e.message}';
+    } catch (e) {
+      return 'Cancel failed: $e';
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GEO-AWARE RIDE MATCHING
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Firestore indexes required (create in Firebase Console → Firestore →
+  // Indexes → Composite):
+  //
+  //  Collection: Rides
+  //    Field 1: status        ASC
+  //    Field 2: pickupGeohash ASC
+  //
+  //  Collection: Drivers
+  //    Field 1: isOnline      ASC
+  //    Field 2: status        ASC
+  //    Field 3: currentGeohash ASC
+  //
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Creates a ride request with geohash + GeoPoint fields so that
+  /// [streamNearbyRideRequests] can find it efficiently.
+  ///
+  /// Caller is responsible for supplying [capacityNeeded] (seats required).
+  /// [gender] defaults to 'female' for the women-only Musafirah app.
+  static Future<String> createGeoRideRequest({
+    required String uid,
+    required String passengerName,
+    required double pickupLat,
+    required double pickupLng,
+    required String pickupAddress,
+    required double dropoffLat,
+    required double dropoffLng,
+    required String dropoffAddress,
+    required double fare,
+    int capacityNeeded = 1,
+    String gender = 'female',
+  }) async {
+    try {
+      final geohash = GeoService.encode(pickupLat, pickupLng);
+      final docRef = await _db.collection('Rides').add({
+        'userId': uid,
+        'passengerName': passengerName,
+        // coordinates as plain doubles (legacy compatibility)
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'pickupAddress': pickupAddress,
+        'dropoffLat': dropoffLat,
+        'dropoffLng': dropoffLng,
+        'dropoffAddress': dropoffAddress,
+        'fare': fare,
+        // geo fields for radius queries
+        'pickupGeopoint': GeoPoint(pickupLat, pickupLng),
+        'pickupGeohash': geohash,
+        // filter fields
+        'capacityNeeded': capacityNeeded,
+        'gender': gender,
+        'status': 'requested',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return docRef.id;
+    } on FirebaseException catch (e) {
+      return 'Error: ${e.message}';
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  /// [DRIVER SIDE] — Real-time stream of 'requested' rides whose pickup is
+  /// within [radiusKm] of the driver's current position.
+  ///
+  /// Query uses geohash cells so Firestore only scans a geographic slice.
+  /// Client-side post-filter removes anything outside the true circle and
+  /// applies [minSeats] / [gender] constraints.
+  ///
+  /// Composite index needed: Rides → status ASC + pickupGeohash ASC
+  static Stream<List<Map<String, dynamic>>> streamNearbyRideRequests({
+    required double driverLat,
+    required double driverLng,
+    double radiusKm = 10,
+    int minSeats = 1,
+    String gender = 'female',
+  }) {
+    final hashes = GeoService.searchHashes(driverLat, driverLng,
+        radiusKm: radiusKm);
+
+    return _db
+        .collection('Rides')
+        .where('status', isEqualTo: 'requested')
+        .where('pickupGeohash', whereIn: hashes)
+        .snapshots()
+        .map((snap) {
+      final results = <Map<String, dynamic>>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        // Accurate distance check (geohash cells are square, not circular)
+        final distKm = GeoService.distanceKm(
+          driverLat,
+          driverLng,
+          (data['pickupLat'] as num).toDouble(),
+          (data['pickupLng'] as num).toDouble(),
+        );
+        if (distKm > radiusKm) continue;
+        // Women-only filter
+        if (data['gender'] != gender) continue;
+        // Seat capacity filter
+        final needed = (data['capacityNeeded'] as num?)?.toInt() ?? 1;
+        if (needed < minSeats) continue;
+
+        results.add({...data, 'rideId': doc.id, 'distanceKm': distKm});
+      }
+      // Sort closest first
+      results.sort((a, b) =>
+          (a['distanceKm'] as double).compareTo(b['distanceKm'] as double));
+      return results;
+    });
+  }
+
+  /// [PASSENGER SIDE] — Real-time stream of 'available' drivers within
+  /// [radiusKm] who are online, approved, women-only, and have [minSeats].
+  ///
+  /// Composite index needed: Drivers → isOnline ASC + status ASC + currentGeohash ASC
+  static Stream<List<Map<String, dynamic>>> streamNearbyDrivers({
+    required double passengerLat,
+    required double passengerLng,
+    double radiusKm = 10,
+    int minSeats = 1,
+    String gender = 'female',
+  }) {
+    final hashes = GeoService.searchHashes(passengerLat, passengerLng,
+        radiusKm: radiusKm);
+
+    return _db
+        .collection('Drivers')
+        .where('isOnline', isEqualTo: true)
+        .where('status', isEqualTo: 'approved')
+        .where('currentGeohash', whereIn: hashes)
+        .snapshots()
+        .map((snap) {
+      final results = <Map<String, dynamic>>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        // Skip drivers without location yet
+        if (data['currentLat'] == null) continue;
+        final distKm = GeoService.distanceKm(
+          passengerLat,
+          passengerLng,
+          (data['currentLat'] as num).toDouble(),
+          (data['currentLng'] as num).toDouble(),
+        );
+        if (distKm > radiusKm) continue;
+        // Women-only filter — driver's gender field
+        if ((data['gender'] ?? 'female') != gender) continue;
+        // Available seat capacity
+        final seats = (data['availableSeats'] as num?)?.toInt() ?? 0;
+        if (seats < minSeats) continue;
+
+        results.add({...data, 'driverId': doc.id, 'distanceKm': distKm});
+      }
+      results.sort((a, b) =>
+          (a['distanceKm'] as double).compareTo(b['distanceKm'] as double));
+      return results;
+    });
+  }
+
+  /// Updates driver's [availableSeats] and [gender] in their Drivers document.
+  /// Call once after the driver sets up their trip before going online.
+  static Future<String?> updateDriverTripMeta({
+    required String uid,
+    required int availableSeats,
+    String gender = 'female',
+  }) async {
+    try {
+      await _db.collection('Drivers').doc(uid).update({
+        'availableSeats': availableSeats,
+        'gender': gender,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return null;
+    } on FirebaseException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
     }
   }
 }

@@ -6,6 +6,8 @@ import 'passenger_dashboard_screen.dart';
 import 'driver_dashboard_screen.dart';
 import 'dart:io';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'user_choice.dart';
 
 class SelfieVerificationScreen extends StatefulWidget {
   final bool isDriver;
@@ -89,7 +91,8 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 85,
+        maxWidth: 600,
+        imageQuality: 25,
       );
       if (image != null && mounted) {
         setState(() {
@@ -180,14 +183,10 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
       final user = AuthService.currentUser;
       if (user == null) return;
 
-      // Upload selfie
-      debugPrint("Uploading selfie...");
-      String? selfieUrl = await AuthService.uploadImage(
-        'users/${user.uid}/selfie.jpg',
-        _selfieImage!,
-      );
-
-      if (selfieUrl == null) throw 'Selfie upload failed';
+      // Encode selfie to Base64 with aggressive compression
+      debugPrint("Encoding selfie...");
+      String? selfieUrl = await AuthService.compressAndEncodeImage(_selfieImage!);
+      if (selfieUrl == null) throw 'Selfie encoding failed';
 
       // If we're here, selfieUrl is NOT null because of the throw above
       await AuthService.saveUserData(
@@ -263,6 +262,44 @@ class _SelfieVerificationScreenState extends State<SelfieVerificationScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text(
+                      'Are you sure you want to logout and cancel registration?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed == true) {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UserChoice()),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+          ),
+        ],
         centerTitle: true,
       ),
       body: SafeArea(

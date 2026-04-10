@@ -13,6 +13,7 @@ class DriverProfile {
     required this.avatarAsset,
     required this.initialEta,
     required this.initialPosition,
+    this.currentTrip,
   });
 
   final String id;
@@ -26,6 +27,29 @@ class DriverProfile {
   final String avatarAsset;
   final String initialEta;
   final LatLng initialPosition;
+  final Map<String, dynamic>? currentTrip;
+
+  factory DriverProfile.fromFirestore(Map<String, dynamic> data, String id) {
+    final trip = data['currentTrip'] as Map<String, dynamic>?;
+    final pos = trip != null 
+        ? LatLng(trip['pickupLat'] ?? 0.0, trip['pickupLng'] ?? 0.0)
+        : const LatLng(0, 0);
+
+    return DriverProfile(
+      id: id,
+      name: data['name'] ?? 'Driver',
+      phone: data['phone'] ?? '',
+      rating: (data['rating'] ?? 0.0).toString(),
+      seats: '3/4 seats', // Default for now
+      vehicleModel: data['vehicleModel'] ?? 'Toyota',
+      vehicleColor: data['vehicleColor'] ?? 'White',
+      vehiclePlate: data['vehicleRegistration'] ?? 'ABC-123',
+      avatarAsset: data['profileImageUrl'] ?? 'Assets/icons/women1.jpeg',
+      initialEta: 'Calculating...', 
+      initialPosition: pos,
+      currentTrip: trip,
+    );
+  }
 }
 
 final List<DriverProfile> mockDriverProfiles = [
@@ -41,6 +65,7 @@ final List<DriverProfile> mockDriverProfiles = [
     avatarAsset: 'Assets/icons/women1.jpeg',
     initialEta: '6 min',
     initialPosition: const LatLng(24.8740, 67.0320),
+    currentTrip: null,
   ),
   DriverProfile(
     id: 'driver_hina_khan',
@@ -54,6 +79,7 @@ final List<DriverProfile> mockDriverProfiles = [
     avatarAsset: 'Assets/icons/pakistani.jpg',
     initialEta: '5 min',
     initialPosition: const LatLng(24.8705, 67.0450),
+    currentTrip: null,
   ),
   DriverProfile(
     id: 'driver_maira_ahmed',
@@ -67,6 +93,7 @@ final List<DriverProfile> mockDriverProfiles = [
     avatarAsset: 'Assets/icons/woman_2.jpg',
     initialEta: '7 min',
     initialPosition: const LatLng(24.8785, 67.0210),
+    currentTrip: null,
   ),
   DriverProfile(
     id: 'driver_nimra_yousuf',
@@ -80,5 +107,6 @@ final List<DriverProfile> mockDriverProfiles = [
     avatarAsset: 'Assets/icons/women1.jpeg',
     initialEta: '8 min',
     initialPosition: const LatLng(24.8665, 67.0550),
+    currentTrip: null,
   ),
 ];

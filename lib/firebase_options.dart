@@ -30,19 +30,20 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDRHFTnBo3H17LPrHJveMU46TBHUDxAyvo',
-    appId: '1:931957871165:android:48d8117474cc69e3709054',
-    messagingSenderId: '931957871165',
-    projectId: 'musafirah-app',
-    storageBucket: 'musafirah-app.firebasestorage.app',
+    apiKey: 'AIzaSyAJnkA306UmneqPezTxkk4oB1L7Qy567tc',
+    appId: '1:950461159376:android:54515dfa7396b70c774bd5',
+    messagingSenderId: '950461159376',
+    projectId: 'musafirah-db-updated',
+    storageBucket: 'musafirah-db-updated.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDRHFTnBo3H17LPrHJveMU46TBHUDxAyvo',
-    appId: '1:931957871165:ios:48d8117474cc69e3709054',
-    messagingSenderId: '931957871165',
-    projectId: 'musafirah-app',
-    storageBucket: 'musafirah-app.firebasestorage.app',
-    iosBundleId: 'com.musafirah.app',
+    apiKey: 'AIzaSyCmt7czy9DScjMLWM1EDrP_xZXYuZgOGSs',
+    appId: '1:950461159376:ios:684643f271de8977774bd5',
+    messagingSenderId: '950461159376',
+    projectId: 'musafirah-db-updated',
+    storageBucket: 'musafirah-db-updated.firebasestorage.app',
+    iosBundleId: 'com.example.musafirahApp',
   );
+
 }

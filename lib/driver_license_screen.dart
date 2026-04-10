@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'driver_vehicle_info_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'user_choice.dart';
 
 class DriverLicenseScreen extends StatefulWidget {
   const DriverLicenseScreen({super.key});
@@ -34,7 +36,11 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
   }
 
   Future<void> _pickImage(bool isFront) async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 600,
+      imageQuality: 25,
+    );
     if (image != null) {
       final file = File(image.path);
       setState(() {
@@ -287,24 +293,16 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
       final user = AuthService.currentUser;
       if (user == null) return;
 
-      // Upload images sequentially for better stability
-      debugPrint("Uploading front license...");
-      String? frontUrl = await AuthService.uploadImage(
-        'users/${user.uid}/license_front.jpg',
-        _frontLicenseImage!,
-      );
+      // Encode license images to Base64 sequentially with aggressive compression
+      debugPrint("Encoding front license...");
+      String? frontUrl = await AuthService.compressAndEncodeImage(_frontLicenseImage!);
+      if (frontUrl == null) throw 'Front license encoding failed';
 
-      if (frontUrl == null) throw 'Front image upload failed';
+      debugPrint("Encoding back license...");
+      String? backUrl = await AuthService.compressAndEncodeImage(_backLicenseImage!);
+      if (backUrl == null) throw 'Back license encoding failed';
 
-      debugPrint("Uploading back license...");
-      String? backUrl = await AuthService.uploadImage(
-        'users/${user.uid}/license_back.jpg',
-        _backLicenseImage!,
-      );
-
-      if (backUrl == null) throw 'Back image upload failed';
-
-      // If we're here, frontUrl and backUrl are NOT null because of the throws above
+      // Save user data with compressed Base64 strings
       await AuthService.saveUserData(
         uid: user.uid,
         role: 'driver',
@@ -358,6 +356,44 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
         ),
         backgroundColor: const Color(0xFFFC153b),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text(
+                      'Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed == true) {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UserChoice()),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

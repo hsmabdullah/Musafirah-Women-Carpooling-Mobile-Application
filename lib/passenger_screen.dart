@@ -1,10 +1,22 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/payment_screen.dart';
 import 'map_screen.dart';
 import 'package:country_code_picker/country_code_picker.dart';
 import 'cnic_verification_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:musafirah_app/services/database_service.dart';
+
+class _LowerCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) =>
+      newValue.copyWith(text: newValue.text.toLowerCase());
+}
 
 class PassengerScreen extends StatefulWidget {
   const PassengerScreen({super.key});
@@ -15,13 +27,29 @@ class PassengerScreen extends StatefulWidget {
 
 class _PassengerScreenState extends State<PassengerScreen> {
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   CountryCode? _selectedCountryCode;
   String? _verificationId;
   bool _otpSent = false;
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _otpError;
+
+  void _scrollToOtp() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   void _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
@@ -44,6 +72,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
           _isLoading = false;
           _otpError = null;
         });
+        _scrollToOtp();
 
         final otpMessage = AuthService.useDemoMode
             ? 'OTP sent to $fullPhoneNumber (Demo: ${AuthService.demoGeneratedOtp})'
@@ -90,10 +119,27 @@ class _PassengerScreenState extends State<PassengerScreen> {
 
     final smsCode = _otpController.text.trim();
 
-    final userCredential = await AuthService.signInWithOTP(
-      verificationId: _verificationId!,
-      smsCode: smsCode,
-    );
+    UserCredential? userCredential;
+    try {
+      userCredential = await AuthService.signInWithOTP(
+        verificationId: _verificationId!,
+        smsCode: smsCode,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _otpError = e.message ?? 'Authentication failed. Please try again.';
+      });
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _otpError = 'Authentication failed. Please try again.';
+      });
+      return;
+    }
 
     if (!mounted) return;
 
@@ -103,8 +149,28 @@ class _PassengerScreenState extends State<PassengerScreen> {
       final phone =
           userCredential.user!.phoneNumber ?? AuthService.demoPhone ?? '';
 
-      // Save initial passenger data
-      await AuthService.saveUserData(uid: uid, role: 'passenger', phone: phone);
+      // Save passenger data immediately into the 'Passengers' collection.
+      final dbError = await DatabaseService.savePassenger(
+        uid: uid,
+        phone: phone,
+        email: _emailController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      if (dbError != null) {
+        // Non-fatal: show a snackbar but do not block the user.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Profile saved locally. Sync issue: $dbError',
+              style: GoogleFonts.inter(fontSize: 13),
+            ),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
 
       setState(() {
         _isLoading = false;
@@ -126,7 +192,10 @@ class _PassengerScreenState extends State<PassengerScreen> {
   @override
   void dispose() {
     _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     _otpController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -171,6 +240,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: horizontalPadding,
@@ -189,7 +259,7 @@ class _PassengerScreenState extends State<PassengerScreen> {
                         ),
                         SizedBox(height: screenHeight * 0.02),
                         Text(
-                          'Enter your phone number to receive a one-time password (OTP) and securely sign up. A 6-digit code will be sent to your number.',
+                          'Fill in your details below. A 6-digit OTP will be sent to your phone number to complete registration.',
                           style: GoogleFonts.inter(
                             fontSize: fontSizeBody,
                             color: Colors.black87,
@@ -335,6 +405,199 @@ class _PassengerScreenState extends State<PassengerScreen> {
                             ),
                           ],
                         ),
+                        SizedBox(height: screenHeight * 0.025),
+
+                        // ── Email Field ──────────────────────────────────
+                        Text(
+                          'Email Address',
+                          style: GoogleFonts.inter(
+                            fontSize: fontSizeLabel,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(height: screenHeight * 0.01),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textCapitalization: TextCapitalization.none,
+                          autocorrect: false,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                            _LowerCaseFormatter(),
+                          ],
+                          decoration: InputDecoration(
+                            hintText: 'yourname@example.com',
+                            hintStyle: GoogleFonts.inter(
+                              fontSize: fontSizeBody,
+                              color: Colors.grey[400],
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.email_outlined,
+                              color: Color(0xFFFC153b),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey[300]!,
+                                width: 1.5,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey[300]!,
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFFC153b),
+                                width: 2,
+                              ),
+                            ),
+                            errorStyle: GoogleFonts.inter(
+                              color: Colors.red,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: fontSizeBody,
+                            color: Colors.black87,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Email is required';
+                            }
+                            if (value.contains(' ')) {
+                              return 'Email must not contain spaces';
+                            }
+                            if (value != value.toLowerCase()) {
+                              return 'Email must be in lowercase';
+                            }
+                            final emailRegex = RegExp(
+                              r'^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$',
+                            );
+                            if (!emailRegex.hasMatch(value.trim())) {
+                              return 'Enter a valid email address';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: screenHeight * 0.025),
+
+                        // ── Password Field ───────────────────────────────
+                        Text(
+                          'Password',
+                          style: GoogleFonts.inter(
+                            fontSize: fontSizeLabel,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(height: screenHeight * 0.01),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          ],
+                          decoration: InputDecoration(
+                            hintText: 'Create a password',
+                            hintStyle: GoogleFonts.inter(
+                              fontSize: fontSizeBody,
+                              color: Colors.grey[400],
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: Color(0xFFFC153b),
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: Colors.grey[500],
+                              ),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey[300]!,
+                                width: 1.5,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: Colors.grey[300]!,
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFFC153b),
+                                width: 2,
+                              ),
+                            ),
+                            errorStyle: GoogleFonts.inter(
+                              color: Colors.red,
+                              fontSize: 12,
+                            ),
+                            errorMaxLines: 2,
+                          ),
+                          style: GoogleFonts.inter(
+                            fontSize: fontSizeBody,
+                            color: Colors.black87,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Password is required';
+                            }
+                            if (value.contains(' ')) {
+                              return 'Password must not contain spaces';
+                            }
+                            if (!RegExp(r'[A-Z]').hasMatch(value)) {
+                              return 'Must contain at least 1 uppercase letter';
+                            }
+                            if (!RegExp(
+                              r"""[!@#$%^&*()\-_=+\[\]{};:'",.<>?/\\|`~]""",
+                            ).hasMatch(value)) {
+                              return 'Must contain at least 1 special character';
+                            }
+                            return null;
+                          },
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 5, left: 2),
+                          child: Text(
+                            'Must include 1 uppercase letter, 1 special character, no spaces',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ),
+
                         SizedBox(height: screenHeight * 0.03),
 
                         // 📨 Get OTP Button
