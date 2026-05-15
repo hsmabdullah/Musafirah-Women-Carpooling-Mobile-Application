@@ -149,7 +149,6 @@ class _RidersListScreenState extends State<RidersListScreen>
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('Passengers')
-                            .orderBy('createdAt', descending: true)
                             .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {

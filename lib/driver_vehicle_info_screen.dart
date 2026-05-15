@@ -141,13 +141,12 @@ class _DriverVehicleInfoScreenState extends State<DriverVehicleInfoScreen> {
 
               if (confirmed == true) {
                 await FirebaseAuth.instance.signOut();
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserChoice()),
-                    (route) => false,
-                  );
-                }
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UserChoice()),
+                  (route) => false,
+                );
               }
             },
           ),

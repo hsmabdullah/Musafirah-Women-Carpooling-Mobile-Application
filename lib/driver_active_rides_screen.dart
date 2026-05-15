@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/driver_data.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:musafirah_app/services/database_service.dart';
 import 'driver_navigation_screen.dart';
 
 class DriverActiveRidesScreen extends StatefulWidget {
@@ -12,6 +14,23 @@ class DriverActiveRidesScreen extends StatefulWidget {
 }
 
 class _DriverActiveRidesScreenState extends State<DriverActiveRidesScreen> {
+  Map<String, dynamic>? _driverProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriverProfile();
+  }
+
+  Future<void> _loadDriverProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final data = await DatabaseService.getDriver(user.uid);
+    if (mounted && data != null) {
+      setState(() => _driverProfile = data);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -207,6 +226,14 @@ class _DriverActiveRidesScreenState extends State<DriverActiveRidesScreen> {
                             end: ride.dropoff,
                             passengerName: ride.passengerName,
                             price: ride.price,
+                            rideId: ride.rideId,
+                            passengerId: ride.passengerId,
+                            passengerImageUrl: ride.passengerImageUrl,
+                            paymentMethod: ride.paymentMethod,
+                            pickupAddress: ride.pickupName,
+                            dropoffAddress: ride.dropoffName,
+                            driverName: _driverProfile?['name'] ?? '',
+                            driverImageUrl: _driverProfile?['profileImageUrl'] ?? '',
                           ),
                         ),
                       );

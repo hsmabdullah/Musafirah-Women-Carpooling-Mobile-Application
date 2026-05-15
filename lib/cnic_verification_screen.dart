@@ -112,155 +112,121 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
 
     // CNIC number pattern
     final cnicReg = RegExp(r'\b\d{5}-\d{7}-\d\b');
-    int cnicIndex = -1;
     for (int i = 0; i < lines.length; i++) {
       final match = cnicReg.firstMatch(lines[i]);
       if (match != null) {
         result['number'] = match.group(0)!;
-        cnicIndex = i;
         break;
       }
     }
 
-    // Dates with multiple separators (/, -, .)
-    String? extractDateForKeyword(List<String> src, List<String> keys) {
-      final dateReg = RegExp(
-        r'\b\d{2}[\/\-.]\d{2}[\/\-.]\d{4}\b',
-      ); // dd/mm/yyyy etc
-      // Prefer matches on or near keyword lines
-      for (int i = 0; i < src.length; i++) {
-        final ll = src[i].toLowerCase();
-        final hasKey = keys.any((k) => ll.contains(k));
-        if (hasKey) {
-          final match = dateReg.firstMatch(src[i]);
-          if (match != null) return match.group(0)!;
-          // look one line down if keyword line has no date
-          if (i + 1 < src.length) {
-            final nMatch = dateReg.firstMatch(src[i + 1]);
-            if (nMatch != null) return nMatch.group(0)!;
-          }
+    // --- Date Extraction ---
+    String? dobStr;
+    String? issueStr;
+    String? expiryStr;
+
+    final dateReg = RegExp(r'\b\d{2}[\/\-.]\d{2}[\/\-.]\d{4}\b');
+
+    // Group dates by their associated keyword
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].toLowerCase();
+      final match = dateReg.firstMatch(lines[i]);
+      String? foundDate;
+      
+      if (match != null) {
+        foundDate = match.group(0);
+      } else if (i + 1 < lines.length) {
+        // Check next line if current line has keyword but no date
+        final nextMatch = dateReg.firstMatch(lines[i + 1]);
+        if (nextMatch != null) foundDate = nextMatch.group(0);
+      }
+
+      if (foundDate != null) {
+        if (line.contains('birth') || line.contains('dob')) {
+          dobStr ??= foundDate;
+        } else if (line.contains('issue') || line.contains('issued')) {
+          issueStr ??= foundDate;
+        } else if (line.contains('expiry') || line.contains('expire') || line.contains('valid')) {
+          expiryStr ??= foundDate;
         }
       }
-      // Fallback: first date anywhere
-      for (final line in src) {
-        final match = dateReg.firstMatch(line);
-        if (match != null) return match.group(0)!;
-      }
-      return null;
     }
 
-    final dob = extractDateForKeyword(lines, ['dob', 'birth', 'date of birth']);
-    final issue = extractDateForKeyword(lines, [
-      'issue',
-      'issued',
-      'date of issue',
-    ]);
-    final expiry = extractDateForKeyword(lines, [
-      'expiry',
-      'expire',
-      'valid till',
-      'exp',
-    ]);
+    // Heuristic Fallback: If dates are still swapped or missing, use year ranges
+    // DOB is usually old, Issue is usually recent.
+    List<String> allDates = [];
+    for (var line in lines) {
+      final matches = dateReg.allMatches(line);
+      for (var m in matches) {
+        allDates.add(m.group(0)!);
+      }
+    }
 
-    if (dob != null) result['dob'] = _normalizeDate(dob);
-    if (issue != null) result['issue'] = _normalizeDate(issue);
-    if (expiry != null) result['expiry'] = _normalizeDate(expiry);
+    if (dobStr == null || issueStr == null) {
+      for (var d in allDates) {
+        try {
+          final year = int.parse(d.split(RegExp(r'[\/\-.]')).last);
+          final currentYear = DateTime.now().year;
+          if (year < currentYear - 16) {
+            dobStr ??= d;
+          } else if (year <= currentYear && year > currentYear - 15) {
+            issueStr ??= d;
+          } else if (year > currentYear) {
+            expiryStr ??= d;
+          }
+        } catch (_) {}
+      }
+    }
 
-    // Name: prefer lines near CNIC number; allow two-line merge; fallback to best alpha line.
+    if (dobStr != null) result['dob'] = _normalizeDate(dobStr);
+    if (issueStr != null) result['issue'] = _normalizeDate(issueStr);
+    if (expiryStr != null) result['expiry'] = _normalizeDate(expiryStr);
+
+    // --- Name Extraction ---
     String? candidateName;
-    String sanitizeAlpha(String s) => s
-        .replaceAll(RegExp('[^A-Za-z ]'), ' ')
-        .replaceAll(RegExp(' +'), ' ')
-        .trim();
-
-    // Name Extraction
-    // 1. Define Ignore List (Headers often picked up as names)
-    final ignoreList = [
-      'identity number',
-      'identity card',
-      'national identity',
-      'father name',
-      'husband name',
-      'country of stay',
-      'pakistan',
-      'islamic republic',
-      'date of birth',
-      'date of issue',
-      'date of expiry',
-      'gender',
-      'family no',
-      'signature',
-      'name', // The label "Name" itself
-    ];
+    final cnicPattern = RegExp(r'\d{5}-\d{7}-\d');
 
     bool isIgnored(String s) {
       final lower = s.toLowerCase();
+      final ignoreList = [
+        'identity number', 'identity card', 'national identity', 'card',
+        'father name', 'husband name', 'country', 'pakistan', 'republic',
+        'birth', 'issue', 'expiry', 'gender', 'family', 'signature', 'name'
+      ];
       return ignoreList.any((term) => lower.contains(term));
     }
 
-    // Helper: Line must not contain digits 0-9 to be a valid name on CNIC
-    bool hasDigits(String s) => s.contains(RegExp(r'\d'));
+    String sanitizeName(String s) => s.replaceAll(RegExp(r'[^A-Za-z ]'), '').trim();
 
-    // Name Extraction
-
-    // Strategy 1: Look for "Name" keyword and pick the next line
+    // Strategy: Look for "Name" label first
     for (int i = 0; i < lines.length - 1; i++) {
-      // Precise match for "Name" header as seen in OCR debug
-      if (lines[i].trim() == 'Name') {
-        final candidate = lines[i + 1];
-        if (!isIgnored(candidate) && !hasDigits(candidate)) {
-          final alpha = sanitizeAlpha(candidate);
-          if (alpha.length >= 3) {
-            candidateName = alpha;
-            break;
-          }
+      if (lines[i].toLowerCase().trim() == 'name') {
+        final nextLine = lines[i+1].trim();
+        if (!cnicPattern.hasMatch(nextLine) && !isIgnored(nextLine)) {
+          candidateName = sanitizeName(nextLine);
+          if (candidateName.length > 3) break;
         }
       }
     }
 
-    // Strategy 2: Scan upwards from CNIC Number (Window fallback) - increased window
-    if (candidateName == null && cnicIndex > 0) {
-      final window = <String>[];
-      // Collect lines just above CNIC Number (Increased window size to 8)
-      for (int i = cnicIndex - 1; i >= 0 && i >= cnicIndex - 9; i--) {
-        window.add(lines[i]);
-      }
-
-      for (final line in window) {
-        if (isIgnored(line)) continue;
-        if (hasDigits(line)) continue;
-
-        final alpha = sanitizeAlpha(line);
-        if (alpha.split(' ').length >= 2 && alpha.length >= 3) {
-          candidateName = alpha;
-          break;
-        }
-      }
-    }
-
+    // Fallback: Longest ALL CAPS line that isn't a number or header
     if (candidateName == null) {
-      // Fallback: pick the longest mostly-alpha line not in ignore list
       String best = '';
       for (final line in lines) {
+        if (cnicPattern.hasMatch(line)) continue;
         if (isIgnored(line)) continue;
-        if (hasDigits(line)) continue;
+        if (line.contains(RegExp(r'\d'))) continue; // Names shouldn't have numbers
 
-        final alpha = sanitizeAlpha(line);
-        final ratio = line.isEmpty
-            ? 0
-            : alpha.replaceAll(' ', '').length / line.length;
-        if (ratio > 0.6 &&
-            alpha.length > best.length &&
-            alpha.split(' ').length >= 2) {
-          best = alpha;
+        // Check if mostly uppercase (names on CNIC are usually UPPERCASE)
+        final upperOnly = line.replaceAll(RegExp(r'[^A-Z ]'), '').length;
+        if (upperOnly > line.length * 0.7 && line.length > best.length) {
+          best = sanitizeName(line);
         }
       }
-      if (best.isNotEmpty) candidateName = best;
-    }
-    if (candidateName != null) {
-      result['name'] = candidateName;
+      if (best.length > 3) candidateName = best;
     }
 
+    if (candidateName != null) result['name'] = candidateName;
     return result;
   }
 
@@ -502,13 +468,12 @@ class _CNICVerificationScreenState extends State<CNICVerificationScreen> {
 
               if (confirmed == true) {
                 await FirebaseAuth.instance.signOut();
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserChoice()),
-                    (route) => false,
-                  );
-                }
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UserChoice()),
+                  (route) => false,
+                );
               }
             },
           ),

@@ -13,9 +13,11 @@ import 'passenger_ride_selection_screen.dart';
 import 'package:musafirah_app/wallet_history_screen.dart';
 import 'package:musafirah_app/rider_profile_screen.dart';
 import 'package:musafirah_app/passenger_live_tracking_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:musafirah_app/services/database_service.dart';
 import 'package:musafirah_app/services/recent_destinations_service.dart';
+import 'package:musafirah_app/screens/notifications_screen.dart';
 import 'user_pending_screen.dart';
 
 class PassengerDashboardScreen extends StatefulWidget {
@@ -52,7 +54,6 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
   String _userName = 'Customer';
   String _userStatus = 'pending';
   String _profileImageStr = '';   // base64 data URI or https URL
-  bool _isDataLoading = true;
   bool _isFindingRide = false; // guard against double-tapping "Find Ride"
 
   @override
@@ -108,7 +109,6 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
           _userName = userData['name'] ?? 'Customer';
           _userStatus = userData['status'] ?? 'pending';
           _profileImageStr = profileUrl;
-          _isDataLoading = false;
         });
 
         final isBlocked = userData['isBlocked'] == true;
@@ -130,7 +130,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
           );
         }
       } else if (mounted) {
-        setState(() => _isDataLoading = false);
+        // Handle case where user data is not found if necessary
       }
     }
   }
@@ -610,6 +610,8 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
           estimatedFare: fareToUse,
           userId: user.uid,
           rideId: rideId,
+          passengerName: _userName,
+          passengerImageUrl: _profileImageStr,
         ),
       ),
     ).then((rideResult) async {
@@ -699,14 +701,63 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseAuth.instance.currentUser != null
+                          ? FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(FirebaseAuth.instance.currentUser!.uid)
+                              .collection('notifications')
+                              .where('isRead', isEqualTo: false)
+                              .snapshots()
+                          : const Stream.empty(),
+                      builder: (context, snapshot) {
+                        final unreadCount = snapshot.data?.docs.length ?? 0;
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.notifications_outlined,
+                                  color: Colors.white, size: 22),
+                            ),
+                            if (unreadCount > 0)
+                              Positioned(
+                                right: -2,
+                                top: -2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.yellow[700], // Using yellow to stand out against the red header
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFFFC153b), width: 1.5),
+                                  ),
+                                  child: Text(
+                                    unreadCount > 9 ? '9+' : '$unreadCount',
+                                    style: const TextStyle(
+                                      color: Colors.black,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
-                    child: const Icon(Icons.notifications_outlined,
-                        color: Colors.white, size: 22),
                   ),
                 ],
               ),
@@ -1330,7 +1381,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
             child: Row(
               children: [
                 _buildNavItem(Icons.home_rounded, 'Home', 0),
-                _buildNavItem(Icons.account_balance_wallet_rounded, 'Wallet', 1),
+                _buildNavItem(Icons.history_rounded, 'History', 1),
                 _buildNavItem(Icons.person_rounded, 'Profile', 2),
               ],
             ),

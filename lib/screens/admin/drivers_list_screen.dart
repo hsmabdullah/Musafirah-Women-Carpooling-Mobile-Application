@@ -149,7 +149,6 @@ class _DriversListScreenState extends State<DriversListScreen>
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('Drivers')
-                            .orderBy('createdAt', descending: true)
                             .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {

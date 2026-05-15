@@ -101,7 +101,13 @@ class DatabaseService {
   static Future<Map<String, dynamic>?> getPassenger(String uid) async {
     try {
       final doc = await _db.collection('Passengers').doc(uid).get();
-      return doc.exists ? doc.data() : null;
+      if (doc.exists) return doc.data();
+      
+      // Fallback for legacy
+      final legacy = await _db.collection('users').doc(uid).get();
+      if (legacy.exists) return legacy.data();
+      
+      return null;
     } catch (e) {
       debugPrint('DB ERROR (getPassenger): $e');
       return null;
@@ -233,7 +239,13 @@ class DatabaseService {
   static Future<Map<String, dynamic>?> getDriver(String uid) async {
     try {
       final doc = await _db.collection('Drivers').doc(uid).get();
-      return doc.exists ? doc.data() : null;
+      if (doc.exists) return doc.data();
+
+      // Fallback for legacy
+      final legacy = await _db.collection('drivers').doc(uid).get();
+      if (legacy.exists) return legacy.data();
+
+      return null;
     } catch (e) {
       debugPrint('DB ERROR (getDriver): $e');
       return null;
@@ -271,6 +283,7 @@ class DatabaseService {
       await ref.set({
         'rideId': ref.id,
         'passengerId': passengerId,
+        'userId': passengerId, // Added for consistency with createRideRequest
         'driverId': driverId,
         'originAddress': originAddress,
         'originLat': originLat,
@@ -328,10 +341,25 @@ class DatabaseService {
     try {
       final snap = await _db
           .collection('Rides')
-          .where('passengerId', isEqualTo: passengerId)
-          .orderBy('createdAt', descending: true)
+          .where(Filter.or(
+            Filter('passengerId', isEqualTo: passengerId),
+            Filter('userId', isEqualTo: passengerId),
+          ))
           .get();
-      return snap.docs.map((d) => d.data()).toList();
+      
+      final docs = snap.docs.map((d) => d.data()).toList();
+      
+      // Sort locally to avoid index requirement
+      docs.sort((a, b) {
+        final aTime = a['createdAt'] as Timestamp?;
+        final bTime = b['createdAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime);
+      });
+      
+      return docs;
     } catch (e) {
       debugPrint('DB ERROR (getPassengerRides): $e');
       return [];
@@ -346,9 +374,21 @@ class DatabaseService {
       final snap = await _db
           .collection('Rides')
           .where('driverId', isEqualTo: driverId)
-          .orderBy('createdAt', descending: true)
           .get();
-      return snap.docs.map((d) => d.data()).toList();
+      
+      final docs = snap.docs.map((d) => d.data()).toList();
+      
+      // Sort locally to avoid index requirement
+      docs.sort((a, b) {
+        final aTime = a['createdAt'] as Timestamp?;
+        final bTime = b['createdAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime);
+      });
+      
+      return docs;
     } catch (e) {
       debugPrint('DB ERROR (getDriverRides): $e');
       return [];
@@ -556,31 +596,95 @@ class DatabaseService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ROLE RESOLUTION  (checks new + legacy collections)
+  // ROLE RESOLUTION  — STRICT, collection-isolated checks
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Returns 'driver', 'passenger', or null if the UID is unknown.
-  static Future<String?> getUserRole(String uid) async {
+  ///
+  /// STRICT MODE: If [expectedRole] is provided, ONLY that collection is
+  /// checked. There is zero fallthrough to the other collection — this is the
+  /// core guarantee that prevents passengers from being misidentified as
+  /// drivers and vice-versa.
+  ///
+  /// GENERIC MODE: If [expectedRole] is null, checks Passengers first, then
+  /// Drivers, then legacy collections.
+  static Future<String?> getUserRole(String uid, {String? expectedRole}) async {
     try {
-      final driver = await _db.collection('Drivers').doc(uid).get();
-      if (driver.exists) return 'driver';
+      debugPrint('DB INFO: getUserRole uid=$uid expected=$expectedRole');
 
-      final passenger = await _db.collection('Passengers').doc(uid).get();
-      if (passenger.exists) return 'passenger';
+      // ── STRICT: passenger login ──────────────────────────────────────────
+      if (expectedRole == 'passenger') {
+        final doc = await _db.collection('Passengers').doc(uid).get();
+        if (doc.exists) {
+          debugPrint('DB INFO: UID $uid confirmed as passenger (Passengers collection)');
+          return 'passenger';
+        }
+        // NOT in Passengers → return null. Do NOT touch Drivers.
+        debugPrint('DB INFO: UID $uid NOT found in Passengers — returning null');
+        return null;
+      }
 
-      // Legacy fallback
-      final legacyDriver = await _db.collection('drivers').doc(uid).get();
-      if (legacyDriver.exists) return 'driver';
+      // ── STRICT: driver login ─────────────────────────────────────────────
+      if (expectedRole == 'driver') {
+        final doc = await _db.collection('Drivers').doc(uid).get();
+        if (doc.exists) {
+          debugPrint('DB INFO: UID $uid confirmed as driver (Drivers collection)');
+          return 'driver';
+        }
+        final legacyDoc = await _db.collection('drivers').doc(uid).get();
+        if (legacyDoc.exists) {
+          debugPrint('DB INFO: UID $uid confirmed as driver (legacy drivers collection)');
+          return 'driver';
+        }
+        // NOT in Drivers → return null. Do NOT touch Passengers.
+        debugPrint('DB INFO: UID $uid NOT found in Drivers — returning null');
+        return null;
+      }
 
-      final legacyUser = await _db.collection('users').doc(uid).get();
-      if (legacyUser.exists) {
-        return (legacyUser.data()?['role'] as String?) ?? 'passenger';
+      // ── GENERIC: no expected role (auto-login / phone login) ─────────────
+      // Check Passengers FIRST so a user who signed up as passenger is never
+      // misidentified as a driver even if stale data exists in Drivers.
+      final passengerDoc = await _db.collection('Passengers').doc(uid).get();
+      if (passengerDoc.exists) return 'passenger';
+
+      final driverDoc = await _db.collection('Drivers').doc(uid).get();
+      if (driverDoc.exists) return 'driver';
+
+      final legacyDriverDoc = await _db.collection('drivers').doc(uid).get();
+      if (legacyDriverDoc.exists) return 'driver';
+
+      final legacyUserDoc = await _db.collection('users').doc(uid).get();
+      if (legacyUserDoc.exists) {
+        return (legacyUserDoc.data()?['role'] as String?) ?? 'passenger';
       }
 
       return null;
     } catch (e) {
       debugPrint('DB ERROR (getUserRole): $e');
       return null;
+    }
+  }
+
+  /// Removes a UID from every collection EXCEPT [keepCollection].
+  /// Call this after saving a new user to ensure no stale duplicate exists.
+  static Future<void> cleanupStaleRoleData({
+    required String uid,
+    required String keepCollection, // 'Passengers' or 'Drivers'
+  }) async {
+    try {
+      final batch = _db.batch();
+      if (keepCollection != 'Passengers') {
+        batch.delete(_db.collection('Passengers').doc(uid));
+      }
+      if (keepCollection != 'Drivers') {
+        batch.delete(_db.collection('Drivers').doc(uid));
+        batch.delete(_db.collection('drivers').doc(uid));
+      }
+      batch.delete(_db.collection('users').doc(uid));
+      await batch.commit();
+      debugPrint('DB INFO: Cleaned up stale role data for $uid (keeping $keepCollection)');
+    } catch (e) {
+      debugPrint('DB WARN (cleanupStaleRoleData): $e — non-fatal');
     }
   }
 
@@ -602,6 +706,69 @@ class DatabaseService {
       return e.message;
     } catch (e) {
       return e.toString();
+    }
+  }
+
+  /// Moves a user from one collection to another (e.g. Driver to Passenger).
+  /// This is used to fix role conflicts.
+  static Future<bool> moveUserToCollection({
+    required String uid,
+    required String fromCollection,
+    required String toCollection,
+    required String newRole,
+  }) async {
+    try {
+      // 1. Find the source document (checking both current and legacy collections)
+      DocumentSnapshot<Map<String, dynamic>>? sourceDoc;
+      
+      final primaryDoc = await _db.collection(fromCollection).doc(uid).get();
+      if (primaryDoc.exists) {
+        sourceDoc = primaryDoc;
+      } else {
+        // Fallback for legacy drivers collection
+        if (fromCollection == 'Drivers') {
+          final legacyDoc = await _db.collection('drivers').doc(uid).get();
+          if (legacyDoc.exists) sourceDoc = legacyDoc;
+        }
+        // Fallback for legacy users collection
+        if (sourceDoc == null) {
+          final usersDoc = await _db.collection('users').doc(uid).get();
+          if (usersDoc.exists) sourceDoc = usersDoc;
+        }
+      }
+
+      if (sourceDoc == null || !sourceDoc.exists) {
+        debugPrint('DB ERROR: Source document for $uid not found in $fromCollection or legacy collections');
+        return false;
+      }
+
+      final data = sourceDoc.data()!;
+      data['role'] = newRole;
+      data['updatedAt'] = FieldValue.serverTimestamp();
+
+      // 2. Copy to the NEW collection
+      await _db.collection(toCollection).doc(uid).set(data, SetOptions(merge: true));
+      
+      // 3. AGGRESSIVE CLEANUP: Delete from ALL potential old locations except the new one
+      await _db.runTransaction((transaction) async {
+        // Delete from current collection names
+        if (toCollection != 'Drivers') {
+          transaction.delete(_db.collection('Drivers').doc(uid));
+        }
+        if (toCollection != 'Passengers') {
+          transaction.delete(_db.collection('Passengers').doc(uid));
+        }
+        
+        // Delete from legacy collection names
+        transaction.delete(_db.collection('drivers').doc(uid));
+        transaction.delete(_db.collection('users').doc(uid));
+      });
+      
+      debugPrint('DB INFO: Aggressively moved UID $uid to $toCollection and cleaned up everywhere else');
+      return true;
+    } catch (e) {
+      debugPrint('DB ERROR (moveUserToCollection): $e');
+      return false;
     }
   }
 
@@ -696,6 +863,7 @@ class DatabaseService {
   }) async {
     try {
       final docRef = await _db.collection('Rides').add({
+        'passengerId': uid,
         'userId': uid,
         'passengerName': passengerName,
         'pickupLat': pickupLat,
@@ -975,6 +1143,36 @@ class DatabaseService {
       return e.message;
     } catch (e) {
       return e.toString();
+    }
+  }
+
+  /// Deletes all users with status 'rejected' from both Drivers and Passengers collections.
+  static Future<void> deleteAllRejectedUsers() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      // 1. Delete from Drivers
+      final rejectedDrivers = await db
+          .collection('Drivers')
+          .where('status', isEqualTo: 'rejected')
+          .get();
+      for (var doc in rejectedDrivers.docs) {
+        await doc.reference.delete();
+        debugPrint('DB: Deleted rejected driver → ${doc.id}');
+      }
+
+      // 2. Delete from Passengers
+      final rejectedPassengers = await db
+          .collection('Passengers')
+          .where('status', isEqualTo: 'rejected')
+          .get();
+      for (var doc in rejectedPassengers.docs) {
+        await doc.reference.delete();
+        debugPrint('DB: Deleted rejected passenger → ${doc.id}');
+      }
+      
+      debugPrint('DB: All rejected users cleared.');
+    } catch (e) {
+      debugPrint('DB ERROR (deleteAllRejectedUsers): $e');
     }
   }
 }

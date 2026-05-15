@@ -8,32 +8,26 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'package:musafirah_app/models/emergency_contact.dart';
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher_string.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/status.dart' as ws_status;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:musafirah_app/models/emergency_contact.dart';
+import 'package:musafirah_app/services/database_service.dart';
+import 'package:musafirah_app/services/location_service.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
-import 'passenger_chat_screen.dart';
+import 'live_chat_screen.dart';
 import 'payment_screen.dart';
 import 'services/emergency_contact_service.dart';
 
-const String _socketBaseUrl = 'wss://api.example.com/rides';
-const String _restBaseUrl = 'https://api.example.com/api/rides';
 const String _emergencyNumber = '112';
 const double _averageSpeedKmh = 28.0;
-
-bool get _isDemoBackend =>
-    _socketBaseUrl.contains('example.com') ||
-    _restBaseUrl.contains('example.com');
 
 enum ConnectionStatus { connecting, connected, reconnecting, failed }
 
@@ -79,11 +73,17 @@ class _PassengerLiveTrackingScreenState
   final MapController _mapController = MapController();
   final Distance _distance = const Distance();
 
-  WebSocketChannel? _channel;
-  StreamSubscription? _socketSubscription;
-  Timer? _pollTimer;
+  StreamSubscription? _driverLocationSub;
+  StreamSubscription? _driverProfileSub;
+  StreamSubscription? _rideSub;
   Timer? _passengerRefreshTimer;
   Timer? _debugTimer;
+
+  // Real-time driver data
+  String? _driverRealName;
+  String? _driverRealPic;
+  String? _vehicleModel;
+  String? _vehiclePlate;
 
   LatLng? _driverLatLng;
   LatLng? _passengerLatLng;
@@ -97,10 +97,10 @@ class _PassengerLiveTrackingScreenState
   bool _isSosSending = false;
   bool _isSosSent = false;
   bool _debugSimulate = false;
+  bool _isRedirectingToPayment = false;
 
   ConnectionStatus _status = ConnectionStatus.connecting;
   String? _errorMessage;
-  int _reconnectAttempts = 0;
   DateTime? _lastMapFit;
   String _etaText = '--';
 
@@ -123,9 +123,9 @@ class _PassengerLiveTrackingScreenState
 
   @override
   void dispose() {
-    _socketSubscription?.cancel();
-    _channel?.sink.close(ws_status.normalClosure);
-    _pollTimer?.cancel();
+    _driverLocationSub?.cancel();
+    _driverProfileSub?.cancel();
+    _rideSub?.cancel();
     _passengerRefreshTimer?.cancel();
     _debugTimer?.cancel();
     super.dispose();
@@ -138,22 +138,69 @@ class _PassengerLiveTrackingScreenState
     await _fetchPassengerLocation();
     _startPassengerRefresh();
 
-    if (_isDemoBackend) {
-      if (mounted) {
-        setState(() {
-          _status = ConnectionStatus.connected;
-          _errorMessage = 'Demo mode active';
-          _debugSimulate = true;
-        });
-      }
-      _startDebugSimulation();
-      return;
-    }
+    _setupRealtimeListeners();
+  }
 
-    _connectSocket();
-    if (_debugSimulate) {
-      _startDebugSimulation();
-    }
+  void _setupRealtimeListeners() {
+    final dId = widget.driverId ?? 'driver';
+
+    // 1. Driver Location Stream
+    _driverLocationSub = LocationService.driverLocationStream(dId).listen((coords) {
+      if (!mounted) return;
+      setState(() {
+        _driverLatLng = LatLng(coords['lat']!, coords['lng']!);
+        _status = ConnectionStatus.connected;
+        _errorMessage = null;
+      });
+      _updateEta();
+      _updateMarkersAndFit();
+    }, onError: (e) {
+      _log('Location stream error: $e');
+      setState(() => _status = ConnectionStatus.failed);
+    });
+
+    // 2. Driver Profile & Vehicle Stream
+    _driverProfileSub = DatabaseService.getUserDocStream(dId, 'Drivers').listen((snap) {
+      if (!snap.exists || !mounted) return;
+      final data = snap.data()!;
+      setState(() {
+        _driverRealName = data['name']?.toString();
+        _driverRealPic = data['profileImageUrl']?.toString();
+        _vehicleModel = data['vehicleModel']?.toString();
+        _vehiclePlate = data['vehicleRegistration']?.toString();
+      });
+    });
+
+    // 3. Ride Status Stream
+    _rideSub = FirebaseFirestore.instance
+        .collection('Rides')
+        .doc(widget.rideId)
+        .snapshots()
+        .listen((snap) {
+      if (!snap.exists || !mounted) return;
+      final data = snap.data()!;
+      final status = data['status']?.toString();
+      if (status == 'completed' && !_isRedirectingToPayment) {
+        _isRedirectingToPayment = true;
+        _showSnack('Ride completed! Redirecting to payment...');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => PaymentScreen(
+              rideId: widget.rideId,
+              driverId: widget.driverId ?? '',
+              driverName: widget.driverName,
+              fare: widget.rideFare ?? 0.0,
+              pickupAddress: widget.pickupAddress ?? '',
+              dropoffAddress: widget.dropoffAddress ?? '',
+              autoReturnToDashboard: true,
+            ),
+          ),
+        );
+      } else if (status == 'cancelled') {
+        _showSnack('Ride has been cancelled.');
+        Navigator.pop(context);
+      }
+    });
   }
 
   Future<void> _ensurePermission() async {
@@ -193,123 +240,6 @@ class _PassengerLiveTrackingScreenState
     });
   }
 
-  Future<void> _connectSocket() async {
-    _log('Opening websocket connection');
-    _channel?.sink.close();
-    _socketSubscription?.cancel();
-
-    setState(() {
-      _status = ConnectionStatus.connecting;
-      _errorMessage = null;
-    });
-
-    final uri = Uri.parse('$_socketBaseUrl/${widget.rideId}/ws');
-    try {
-      _channel = WebSocketChannel.connect(uri);
-      _socketSubscription = _channel!.stream.listen(
-        (event) {
-          _handleSocketMessage(event);
-        },
-        onError: (error) {
-          _log('Socket error: $error');
-          _handleSocketFailure();
-        },
-        onDone: () {
-          _log('Socket closed');
-          _handleSocketFailure();
-        },
-      );
-      if (mounted) {
-        setState(() => _status = ConnectionStatus.connected);
-      }
-      _pollTimer?.cancel();
-    } catch (e) {
-      _log('Socket connection failed: $e');
-      _handleSocketFailure();
-    }
-  }
-
-  void _handleSocketMessage(dynamic event) {
-    _log('Socket message: $event');
-    try {
-      final data = event is String ? jsonDecode(event) : event as Map;
-      final lat = (data['latitude'] ?? data['lat'])?.toDouble();
-      final lng = (data['longitude'] ?? data['lng'])?.toDouble();
-      if (lat == null || lng == null) return;
-      if (!mounted) return;
-      setState(() {
-        _driverLatLng = LatLng(lat, lng);
-        _status = ConnectionStatus.connected;
-        _reconnectAttempts = 0;
-        _errorMessage = null;
-      });
-      _updateEta();
-      _updateMarkersAndFit();
-    } catch (e) {
-      _log('Parse error: $e');
-    }
-  }
-
-  void _handleSocketFailure() {
-    if (mounted) {
-      setState(() {
-        _status = ConnectionStatus.reconnecting;
-        _errorMessage = 'Trying to reconnect…';
-      });
-    }
-    _channel?.sink.close();
-    _socketSubscription?.cancel();
-    _pollLocation();
-    final delaySeconds = min(30, pow(2, _reconnectAttempts + 1).toInt());
-    _reconnectAttempts++;
-    if (_reconnectAttempts > 5 && mounted) {
-      setState(() {
-        _status = ConnectionStatus.failed;
-        _errorMessage = 'Unable to reach live tracking service.';
-        _debugSimulate = true;
-      });
-      _startDebugSimulation();
-      return;
-    }
-    Future.delayed(Duration(seconds: delaySeconds), () {
-      if (!mounted) return;
-      _connectSocket();
-    });
-  }
-
-  void _pollLocation() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      try {
-        final response = await http.get(
-          Uri.parse('$_restBaseUrl/${widget.rideId}/location'),
-        );
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final lat = (data['latitude'] ?? data['lat'])?.toDouble();
-          final lng = (data['longitude'] ?? data['lng'])?.toDouble();
-          if (lat != null && lng != null) {
-            if (!mounted) return;
-            setState(() {
-              _driverLatLng = LatLng(lat, lng);
-              _status = ConnectionStatus.connected;
-              _errorMessage = null;
-            });
-            _updateEta();
-            _updateMarkersAndFit();
-          }
-        }
-      } catch (e) {
-        _log('Polling error: $e');
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Network issue. Retrying…';
-            _status = ConnectionStatus.reconnecting;
-          });
-        }
-      }
-    });
-  }
 
   void _updateMarkersAndFit() {
     if (!_mapReady) return;
@@ -464,44 +394,22 @@ class _PassengerLiveTrackingScreenState
         // Call selected contact
         await launchUrlString('tel:${selectedContact.phoneNumber}');
       }
-      // Note: "Call All" functionality removed for simplicity - user selects one contact
     }
 
-    // Send SOS to backend
+    // Send SOS to backend (Using Firestore update instead of mock REST)
     if (mounted) setState(() => _isSosSending = true);
     try {
-      final uri = Uri.parse('$_restBaseUrl/${widget.rideId}/sos');
-      final body = {
-        'userId': widget.userId ?? 'passenger',
-        'rideId': widget.rideId,
-        'location': {
-          'latitude': _passengerLatLng?.latitude,
-          'longitude': _passengerLatLng?.longitude,
-        },
-        'emergencyContacts': contacts
-            .map<Map<String, String>>(
-              (EmergencyContact c) => {
-                'name': c.name,
-                'phone': c.phoneNumber,
-                'relationship': c.relationship,
-              },
-            )
-            .toList(),
-      };
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        if (mounted) setState(() => _isSosSent = true);
-        _showSnack('SOS alert sent to control room.');
-        // Also call emergency number if contacts weren't available
-        if (contacts.isEmpty) {
-          await launchUrlString('tel:$_emergencyNumber');
-        }
-      } else {
-        _showSnack('Unable to send SOS. Please try again.');
+      await FirebaseFirestore.instance.collection('Rides').doc(widget.rideId).update({
+        'sosTriggered': true,
+        'sosBy': widget.userId ?? 'passenger',
+        'sosAt': FieldValue.serverTimestamp(),
+        'sosLocation': GeoPoint(_passengerLatLng?.latitude ?? 0, _passengerLatLng?.longitude ?? 0),
+      });
+
+      if (mounted) setState(() => _isSosSent = true);
+      _showSnack('SOS alert sent to control room.');
+      if (contacts.isEmpty) {
+        await launchUrlString('tel:$_emergencyNumber');
       }
     } catch (e) {
       _showSnack('SOS failed: $e');
@@ -510,14 +418,42 @@ class _PassengerLiveTrackingScreenState
     }
   }
 
+  Future<void> _shareRideOnWhatsApp() async {
+    final driver = _driverRealName ?? widget.driverName;
+    final car = _vehicleModel ?? 'Vehicle';
+    final plate = _vehiclePlate ?? '—';
+    final lat = _passengerLatLng?.latitude ?? 0;
+    final lng = _passengerLatLng?.longitude ?? 0;
+
+    final message = 'Tracking my Musafirah Ride! 🚗\n'
+        'Ride ID: ${widget.rideId}\n'
+        'Driver: $driver\n'
+        'Car: $car ($plate)\n'
+        'ETA: $_etaText\n'
+        'My Location: https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+
+    final whatsappUrl = "whatsapp://send?text=${Uri.encodeComponent(message)}";
+    final webUrl = "https://wa.me/?text=${Uri.encodeComponent(message)}";
+
+    if (await canLaunchUrlString(whatsappUrl)) {
+      await launchUrlString(whatsappUrl);
+    } else if (await canLaunchUrlString(webUrl)) {
+      await launchUrlString(webUrl);
+    } else {
+      _showSnack('Could not launch WhatsApp.');
+    }
+  }
+
   void _openChat() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PassengerChatScreen(
+        builder: (_) => LiveChatScreen(
           rideId: widget.rideId,
-          driverId: widget.driverId ?? 'driver',
-          driverName: widget.driverName,
+          peerId: widget.driverId ?? 'driver',
+          peerName: widget.driverName,
+          peerImageUrl: widget.driverAvatarAsset ?? '',
+          isDriver: false,
         ),
       ),
     );
@@ -637,9 +573,11 @@ class _PassengerLiveTrackingScreenState
             children: [
               _SafeCircleAvatar(
                 radius: metrics.cardAvatarRadius,
-                imagePath: (widget.driverAvatarAsset?.isNotEmpty ?? false)
-                    ? widget.driverAvatarAsset!
-                    : 'Assets/icons/women1.jpeg',
+                imagePath: (_driverRealPic?.isNotEmpty ?? false)
+                    ? _driverRealPic!
+                    : (widget.driverAvatarAsset?.isNotEmpty ?? false)
+                        ? widget.driverAvatarAsset!
+                        : 'Assets/icons/women1.jpeg',
                 backgroundColor: Colors.white,
               ),
               SizedBox(width: metrics.cardSpacing),
@@ -649,12 +587,13 @@ class _PassengerLiveTrackingScreenState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Driver ${widget.driverName}',
+                      _driverRealName ?? widget.driverName,
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w700,
                         fontSize: metrics.cardTitleFont,
                         color: Colors.white,
                       ),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
 
@@ -668,7 +607,7 @@ class _PassengerLiveTrackingScreenState
                     ),
                     SizedBox(height: metrics.smallSpacing / 2),
                     Text(
-                      widget.pickupAddress ?? '',
+                      '${_vehicleModel ?? "Vehicle"} • ${_vehiclePlate ?? "—"}',
                       style: GoogleFonts.inter(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: metrics.smallFont,
@@ -1016,6 +955,30 @@ class _PassengerLiveTrackingScreenState
                 ),
               ),
             ),
+            SizedBox(width: metrics.sectionSpacingSmall),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _shareRideOnWhatsApp,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF25D366), width: 2),
+                  foregroundColor: const Color(0xFF25D366),
+                  padding: EdgeInsets.symmetric(
+                    vertical: metrics.buttonPadding,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(metrics.buttonRadius),
+                  ),
+                ),
+                icon: const Icon(Icons.share),
+                label: Text(
+                  'Share',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    fontSize: metrics.buttonFont,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
         SizedBox(height: metrics.sectionSpacingSmall),
@@ -1029,6 +992,8 @@ class _PassengerLiveTrackingScreenState
                   rideId: widget.rideId,
                   pickupAddress: widget.pickupAddress ?? 'Pickup location',
                   dropoffAddress: widget.dropoffAddress ?? 'Drop-off location',
+                  driverId: widget.driverId ?? '',
+                  driverName: widget.driverName,
                 ),
               ),
             );
@@ -1151,27 +1116,45 @@ class _SafeCircleAvatar extends StatelessWidget {
       radius: radius,
       backgroundColor: backgroundColor,
       child: ClipOval(
-        child: Image.asset(
-          imagePath,
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              width: radius * 2,
-              height: radius * 2,
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.person,
-                size: radius,
-                color: const Color(0xFFFC153b),
-              ),
-            );
-          },
-        ),
+        child: imagePath.startsWith('data:image')
+            ? Image.memory(
+                base64Decode(imagePath.split(',').last),
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+              )
+            : imagePath.startsWith('http')
+                ? Image.network(
+                    imagePath,
+                    width: radius * 2,
+                    height: radius * 2,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+                  )
+                : Image.asset(
+                    imagePath,
+                    width: radius * 2,
+                    height: radius * 2,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+                  ),
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Container(
+      width: radius * 2,
+      height: radius * 2,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.person,
+        size: radius,
+        color: const Color(0xFFFC153b),
       ),
     );
   }

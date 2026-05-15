@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/driver_license_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
@@ -35,13 +34,22 @@ class _DriverEmailSignupScreenState extends State<DriverEmailSignupScreen> {
       );
 
       if (credential != null && credential.user != null) {
-        // Save driver data
+        final uid = credential.user!.uid;
+
+        // Save driver data to the Drivers collection
         await DatabaseService.saveDriver(
-          uid: credential.user!.uid,
+          uid: uid,
           phone: _phoneController.text.trim(),
           email: _emailController.text.trim(),
           name: _nameController.text.trim(),
           status: 'pending',
+        );
+
+        // CRITICAL: Remove any stale Passenger records for this UID so the
+        // account can never be misidentified as a passenger.
+        await DatabaseService.cleanupStaleRoleData(
+          uid: uid,
+          keepCollection: 'Drivers',
         );
 
         if (!mounted) return;
@@ -86,8 +94,12 @@ class _DriverEmailSignupScreenState extends State<DriverEmailSignupScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.black87,
+        backgroundColor: const Color(0xFFFC153b),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           'Driver Sign Up',
           style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600),
@@ -136,6 +148,8 @@ class _DriverEmailSignupScreenState extends State<DriverEmailSignupScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   decoration: _inputDecoration('yourname@example.com', Icons.email_outlined),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email is required';
@@ -176,7 +190,7 @@ class _DriverEmailSignupScreenState extends State<DriverEmailSignupScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _handleSignup,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black87,
+                      backgroundColor: const Color(0xFFFC153b),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 2,
                     ),
@@ -209,12 +223,12 @@ class _DriverEmailSignupScreenState extends State<DriverEmailSignupScreen> {
   InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, color: Colors.black87),
+      prefixIcon: Icon(icon, color: const Color(0xFFFC153b)),
       filled: true,
       fillColor: Colors.grey[50],
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black87, width: 2)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFC153b), width: 2)),
     );
   }
 }

@@ -12,6 +12,21 @@ class AuthService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  static const String _kLastRole = 'last_used_role';
+
+  /// Saves the user's role locally to ensure consistent auto-login.
+  static Future<void> saveLastUsedRole(String role) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLastRole, role);
+    debugPrint('AUTH INFO: Saved last used role: $role');
+  }
+
+  /// Retrieves the last used role from local storage.
+  static Future<String?> getLastUsedRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kLastRole);
+  }
+
   // Set to false for production — real SMS/email OTPs are sent.
   // Set to true only during local development to bypass Firebase SMS.
   static const bool useDemoMode = false;
@@ -116,7 +131,9 @@ class AuthService {
         "Demo Mode: Checking OTP. Entered: '$smsCode', Expected: '$_demoOtp'",
       );
       if (smsCode != _demoOtp) {
-        debugPrint("Demo Mode: OTP Mismatch! Entered='$smsCode' Expected='$_demoOtp'");
+        debugPrint(
+          "Demo Mode: OTP Mismatch! Entered='$smsCode' Expected='$_demoOtp'",
+        );
         return null; // null = wrong code, not a Firebase error
       }
 
@@ -137,7 +154,7 @@ class AuthService {
       return null;
     }
   }
-  
+
   // 2. Sign Up with Email & Password
   static Future<UserCredential?> signUpWithEmail({
     required String email,
@@ -196,12 +213,24 @@ class AuthService {
       if (extraData != null) data.addAll(extraData);
 
       String collection = role == 'driver' ? 'Drivers' : 'Passengers';
+      String otherCollection = role == 'driver' ? 'Passengers' : 'Drivers';
+
       debugPrint("Updating $collection/$uid with: $data");
 
+      // Set the data in the target collection
       await _firestore
           .collection(collection)
           .doc(uid)
           .set(data, SetOptions(merge: true));
+
+      // CRITICAL: Remove from the other collection to prevent role conflicts
+      try {
+        await _firestore.collection(otherCollection).doc(uid).delete();
+        debugPrint("Cleaned up potential duplicate in $otherCollection");
+      } catch (e) {
+        // Ignore errors during deletion as the doc might not exist
+      }
+
       debugPrint("Data updated successfully.");
     } catch (e) {
       debugPrint("!!!! FIRESTORE SAVE ERROR !!!! $e");
@@ -221,13 +250,17 @@ class AuthService {
       final newDriver = await _firestore.collection('Drivers').doc(uid).get();
       if (newDriver.exists) return newDriver;
 
-      final newPassenger =
-          await _firestore.collection('Passengers').doc(uid).get();
+      final newPassenger = await _firestore
+          .collection('Passengers')
+          .doc(uid)
+          .get();
       if (newPassenger.exists) return newPassenger;
 
       // Legacy fallback for existing accounts
-      final legacyDriver =
-          await _firestore.collection('drivers').doc(uid).get();
+      final legacyDriver = await _firestore
+          .collection('drivers')
+          .doc(uid)
+          .get();
       if (legacyDriver.exists) return legacyDriver;
 
       return await _firestore.collection('users').doc(uid).get();
@@ -276,7 +309,9 @@ class AuthService {
         );
       }, onError: (e) => debugPrint("!!!! UploadTask Stream Error: $e"));
 
-      TaskSnapshot finalSnapshot = await uploadTask.timeout(const Duration(seconds: 30));
+      TaskSnapshot finalSnapshot = await uploadTask.timeout(
+        const Duration(seconds: 30),
+      );
       debugPrint("UploadTask finished with state: ${finalSnapshot.state}");
 
       if (finalSnapshot.state == TaskState.success) {
@@ -334,7 +369,9 @@ class AuthService {
       debugPrint("Demo Mode: Anonymous sign-in for email login.");
       try {
         final result = await _auth.signInAnonymously();
-        debugPrint("Demo Mode: Anonymous sign-in success. UID: ${result.user?.uid}");
+        debugPrint(
+          "Demo Mode: Anonymous sign-in success. UID: ${result.user?.uid}",
+        );
         return result;
       } catch (e) {
         debugPrint("Demo Mode ERROR (signInWithEmail): $e");
@@ -457,10 +494,14 @@ class AuthService {
         emailLink: emailLink,
       );
       await prefs.remove(_kEmailForSignIn);
-      debugPrint('AuthService: email link sign-in OK. UID: ${result.user?.uid}');
+      debugPrint(
+        'AuthService: email link sign-in OK. UID: ${result.user?.uid}',
+      );
       return result;
     } on FirebaseAuthException catch (e) {
-      debugPrint('AuthService ERROR (verifyEmailSignInLink) [${e.code}]: ${e.message}');
+      debugPrint(
+        'AuthService ERROR (verifyEmailSignInLink) [${e.code}]: ${e.message}',
+      );
       return null;
     } catch (e) {
       debugPrint('AuthService ERROR (verifyEmailSignInLink): $e');
@@ -495,7 +536,9 @@ class AuthService {
   static Future<UserCredential> _demoSignIn() async {
     // ── Strategy 1: reuse existing session ──────────────────────────────────
     if (_auth.currentUser != null) {
-      debugPrint('Demo: reusing existing session UID=${_auth.currentUser!.uid}');
+      debugPrint(
+        'Demo: reusing existing session UID=${_auth.currentUser!.uid}',
+      );
       // signInAnonymously on an anonymous user just refreshes the token.
       // For non-anonymous providers we just return the current credential
       // via a lightweight re-authentication that never fails if already signed in.

@@ -22,6 +22,8 @@ class PassengerRideSelectionScreen extends StatefulWidget {
   final double estimatedFare;
   final String userId;
   final String rideId;
+  final String passengerName;
+  final String passengerImageUrl;
 
   const PassengerRideSelectionScreen({
     super.key,
@@ -32,6 +34,8 @@ class PassengerRideSelectionScreen extends StatefulWidget {
     required this.estimatedFare,
     required this.userId,
     required this.rideId,
+    this.passengerName = '',
+    this.passengerImageUrl = '',
   });
 
   @override
@@ -127,6 +131,8 @@ class _PassengerRideSelectionScreenState
           pickupLocation: widget.pickupLocation,
           dropoffLocation: widget.dropoffLocation,
           userId: widget.userId,
+          passengerName: widget.passengerName,
+          passengerImageUrl: widget.passengerImageUrl,
           eta: rideData['eta']?.toString() ?? '—',
         ),
       ),

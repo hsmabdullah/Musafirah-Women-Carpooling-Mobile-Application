@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:musafirah_app/services/stripe_service.dart';
 
 const _kRed = Color(0xFFFC153B);
 const _kText = Color(0xFF0F172A);
@@ -58,6 +59,8 @@ class _RideBookingScreenState extends State<RideBookingScreen>
   final MapController _mapController = MapController();
   late AnimationController _sheetAnim;
   late Animation<Offset> _sheetSlide;
+  String _paymentMethod = 'Cash'; // 'Cash' or 'Online'
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -108,12 +111,32 @@ class _RideBookingScreenState extends State<RideBookingScreen>
   }
 
   Future<void> _confirmRide() async {
+    if (_paymentMethod == 'Online') {
+      setState(() => _isProcessing = true);
+      final errorMessage =
+          await StripeService.makePayment(widget.estimatedFare, 'PKR');
+      if (mounted) setState(() => _isProcessing = false);
+
+      if (errorMessage != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Payment failed: $errorMessage')),
+          );
+        }
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _ConfirmSheet(
         driverName: widget.driverName,
         fare: widget.estimatedFare,
+        paymentMethod: _paymentMethod,
       ),
     );
     if (confirmed == true && mounted) {
@@ -133,6 +156,8 @@ class _RideBookingScreenState extends State<RideBookingScreen>
         'fare': widget.estimatedFare,
         'pickupAddress': widget.pickupAddress,
         'dropoffAddress': widget.dropoffAddress,
+        'paymentMethod': _paymentMethod,
+        'isPaid': _paymentMethod == 'Online',
         'initialDriverPosition':
             widget.initialDriverLocation ?? widget.pickupLocation,
         'dropoffPosition': widget.dropoffLocation,
@@ -146,7 +171,10 @@ class _RideBookingScreenState extends State<RideBookingScreen>
         'passengerLat': widget.pickupLocation.latitude,
         'passengerLng': widget.pickupLocation.longitude,
       };
-      Navigator.pop(context, details);
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.pop(context, details);
+      }
     }
   }
 
@@ -418,6 +446,31 @@ class _RideBookingScreenState extends State<RideBookingScreen>
                       ),
                     ),
 
+                    const SizedBox(height: 16),
+
+                    // Payment method selection
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PaymentChoice(
+                            label: 'Cash',
+                            icon: Icons.money_rounded,
+                            selected: _paymentMethod == 'Cash',
+                            onTap: () => setState(() => _paymentMethod = 'Cash'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PaymentChoice(
+                            label: 'Online',
+                            icon: Icons.credit_card_rounded,
+                            selected: _paymentMethod == 'Online',
+                            onTap: () => setState(() => _paymentMethod = 'Online'),
+                          ),
+                        ),
+                      ],
+                    ),
+
                     const SizedBox(height: 20),
 
                     // Confirm button
@@ -425,7 +478,7 @@ class _RideBookingScreenState extends State<RideBookingScreen>
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
-                        onPressed: _confirmRide,
+                        onPressed: _isProcessing ? null : _confirmRide,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _kRed,
                           foregroundColor: Colors.white,
@@ -434,9 +487,21 @@ class _RideBookingScreenState extends State<RideBookingScreen>
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18)),
                         ),
-                        child: Text('Confirm Ride',
-                            style: GoogleFonts.outfit(
-                                fontSize: 17, fontWeight: FontWeight.w800)),
+                        child: _isProcessing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                _paymentMethod == 'Online'
+                                    ? 'Pay & Confirm'
+                                    : 'Confirm Ride',
+                                style: GoogleFonts.outfit(
+                                    fontSize: 17, fontWeight: FontWeight.w800)),
                       ),
                     ),
                   ],
@@ -474,9 +539,14 @@ class _RideBookingScreenState extends State<RideBookingScreen>
 
 // ── Confirm bottom sheet ──────────────────────────────────────────────────────
 class _ConfirmSheet extends StatelessWidget {
-  const _ConfirmSheet({required this.driverName, required this.fare});
+  const _ConfirmSheet({
+    required this.driverName,
+    required this.fare,
+    required this.paymentMethod,
+  });
   final String driverName;
   final double fare;
+  final String paymentMethod;
 
   @override
   Widget build(BuildContext context) {
@@ -512,7 +582,8 @@ class _ConfirmSheet extends StatelessWidget {
               style: GoogleFonts.outfit(
                   fontSize: 22, fontWeight: FontWeight.w800, color: _kText)),
           const SizedBox(height: 6),
-          Text('$driverName will pick you up · Rs ${fare.toInt()}',
+          Text(
+              '$driverName will pick you up · Rs ${fare.toInt()}\nPayment via $paymentMethod',
               style: GoogleFonts.outfit(fontSize: 14, color: _kSub),
               textAlign: TextAlign.center),
           const SizedBox(height: 28),
@@ -653,6 +724,60 @@ class _DriverInitialAvatar extends StatelessWidget {
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: GoogleFonts.outfit(
               fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentChoice extends StatelessWidget {
+  const _PaymentChoice({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? _kRed : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? _kRed : Colors.grey[200]!,
+            width: 1.5,
+          ),
+          boxShadow: [
+            if (selected)
+              BoxShadow(
+                color: _kRed.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: selected ? Colors.white : _kSub, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : _kText,
+              ),
+            ),
+          ],
         ),
       ),
     );

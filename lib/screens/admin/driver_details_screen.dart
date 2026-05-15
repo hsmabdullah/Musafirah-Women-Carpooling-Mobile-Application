@@ -342,6 +342,23 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
                               'License No.: ${data['License_Number'] ?? data['licenseNumber'] ?? 'N/A'}',
                               style: const TextStyle(fontSize: 14, color: Colors.black87),
                             ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Issue: ${data['license_issue_date'] ?? data['license_issue'] ?? 'N/A'}',
+                                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'Expiry: ${data['license_expiry'] ?? 'N/A'}',
+                                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 12),
                             ImageTile(
                               imagePath: data['image_license_front'] ?? data['licenseUrl'] ?? '',

@@ -18,6 +18,7 @@ class DriverLicenseScreen extends StatefulWidget {
 class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
   final TextEditingController _licenseNumberController =
       TextEditingController();
+  final TextEditingController _issueDateController = TextEditingController();
   final TextEditingController _expiryDateController = TextEditingController();
   File? _frontLicenseImage;
   File? _backLicenseImage;
@@ -30,6 +31,7 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
   @override
   void dispose() {
     _licenseNumberController.dispose();
+    _issueDateController.dispose();
     _expiryDateController.dispose();
     _textRecognizer.close();
     super.dispose();
@@ -63,6 +65,9 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
       setState(() {
         if (data['number']?.isNotEmpty ?? false) {
           _licenseNumberController.text = data['number']!;
+        }
+        if (data['issue']?.isNotEmpty ?? false) {
+          _issueDateController.text = data['issue']!;
         }
         if (data['expiry']?.isNotEmpty ?? false) {
           _expiryDateController.text = data['expiry']!;
@@ -139,94 +144,75 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
       }
     }
 
-    // 2. Expiry Date Extraction
-    // Strategy: Find all dates, pick the one furthest in the future.
-    // Also still look for "Valid" context specific to Pakistani licenses.
-
-    // Looser regex: Allow optional separators, spaces, etc.
-    // Groups: 1=Day, 2=Month, 3=Year
+    // 2. Date Extraction (Issue & Expiry)
+    // Pakistani licenses usually have "Issue Date" and "Valid Upto" labels.
     final dateReg = RegExp(
-      r'(\d{1,2})\s*[-/\. ]?\s*([a-zA-Z]{3,})\s*[-/\. ]?\s*(\d{4})',
+      r'(\d{1,2})[\s-/\.\\]+([a-zA-Z0-9]{2,10}|[0-9]{1,2})[\s-/\.\\]+(\d{2,4})',
     );
+
     List<DateTime> foundDates = [];
-    String? explicitExpiry;
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final lineLower = line.toLowerCase();
-
-      // EXCLUDE DOB line from being a candidate for Expiry
-      if (lineLower.contains('birth') || lineLower.contains('dob')) continue;
-
-      final matches = dateReg.allMatches(line);
-
-      for (final match in matches) {
-        // Construct a raw string like "22-Jan-2029" or "22 Jan 2029"
-        // We will parse it manually from groups to be safe
-        final dStr = '${match.group(1)}-${match.group(2)}-${match.group(3)}';
-        final date = _parseDate(dStr);
-        if (date != null) {
-          foundDates.add(date);
-
-          // Check context for this specific date
-          if (lineLower.contains('valid') ||
-              lineLower.contains('upto') ||
-              lineLower.contains('expiry') ||
-              lineLower.contains('expires')) {
-            // Reconstruct the original string format found in text
-            explicitExpiry = match.group(0)!;
-          } else {
-            // Check previous line for label
-            if (i > 0) {
-              final prevLine = lines[i - 1].toLowerCase();
-              if (prevLine.contains('valid') ||
-                  prevLine.contains('upto') ||
-                  prevLine.contains('expiry')) {
-                explicitExpiry = match.group(0)!;
-              }
-            }
-          }
-        }
+    final matches = dateReg.allMatches(text);
+    for (final m in matches) {
+      final date = _parseDate('${m.group(1)}-${m.group(2)}-${m.group(3)}');
+      if (date != null) {
+        foundDates.add(date);
       }
     }
+    
+    // Remove duplicates
+    foundDates = foundDates.toSet().toList();
+    
+    // Filter out dates that are obviously Date of Birth (> 15 years old)
+    final now = DateTime.now();
+    foundDates.removeWhere((d) => now.difference(d).inDays / 365.25 > 15);
 
-    if (explicitExpiry != null) {
-      result['expiry'] = explicitExpiry;
-    } else if (foundDates.isNotEmpty) {
-      // Sort to find the latest date
-      foundDates.sort((a, b) => b.compareTo(a));
-      final maxDate = foundDates.first;
+    foundDates.sort();
 
-      // Format it nicely since we built it from manual parts
-      // Or find the original match? Let's just format it as DD-MMM-YYYY to be safe and standard
-      // But the controller needs to display it.
-      // Let's rely on finding the string match again for simplicity or formatting it.
-      // We will blindly format it to DD-MMM-YYYY which is standard for the input mask if any, or just text.
-      // To keep it 1:1 with OCR text, let's scan lines again? No, let's just format cleanly.
-      // Users prefer the clean format generally.
-
-      final m = maxDate.month;
-      const months = [
-        '',
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      result['expiry'] =
-          '${maxDate.day.toString().padLeft(2, '0')}-${months[m]}-${maxDate.year}';
+    if (foundDates.length >= 2) {
+      // Ideal case: Issue and Expiry
+      // If there are more than 2, the oldest is Issue, newest is Expiry
+      result['issue'] = _formatDate(foundDates.first);
+      result['expiry'] = _formatDate(foundDates.last);
+    } else if (foundDates.length == 1) {
+      // If only one date found, determine if it's Issue or Expiry
+      final d = foundDates.first;
+      if (d.isAfter(now)) {
+        result['expiry'] = _formatDate(d);
+      } else {
+        result['issue'] = _formatDate(d);
+      }
     }
 
     return result;
   }
+
+  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1980),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(primary: Color(0xFFFC153b)),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        controller.text = _formatDate(picked);
+      });
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day.toString().padLeft(2, '0')}-${months[date.month]}-${date.year}';
+  }
+
 
   DateTime? _parseDate(String raw) {
     try {
@@ -235,37 +221,60 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
       final parts = raw.split('-');
       if (parts.length < 3) return null;
 
-      int day = int.parse(parts[0]);
-      int year = int.parse(parts[2]);
+      // Sanitize parts to remove OCR noise (e.g. "2029DSP" -> "2029")
+      String dStr = parts[0].replaceAll(RegExp(r'[^0-9]'), '');
+      String yStr = parts[2].replaceAll(RegExp(r'[^0-9]'), '');
+      String mStr = parts[1].replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
 
-      String mStr = parts[1].toLowerCase();
+      if (dStr.isEmpty || yStr.isEmpty || mStr.isEmpty) return null;
+
+      int day = int.parse(dStr);
+      int year = int.parse(yStr);
       int month = 1;
 
       const monthMap = {
-        'jan': 1,
-        'feb': 2,
-        'mar': 3,
-        'apr': 4,
-        'may': 5,
-        'jun': 6,
-        'jul': 7,
-        'aug': 8,
-        'sep': 9,
-        'oct': 10,
-        'nov': 11,
-        'dec': 12,
+        'jan': 1, 'ja': 1, 'ia': 1, 'za': 1,
+        'feb': 2, 'fe': 2,
+        'mar': 3, 'ma': 3,
+        'apr': 4, 'ap': 4, 'ar': 4,
+        'may': 5, 'my': 5,
+        'jun': 6, 'ju': 6,
+        'jul': 7, 'jl': 7,
+        'aug': 8, 'au': 8,
+        'sep': 9, 'se': 9, 'sp': 9,
+        'oct': 10, 'oc': 10,
+        'nov': 11, 'no': 11,
+        'dec': 12, 'de': 12,
       };
 
       // StartsWith logic to handle "January" matching "jan"
       bool found = false;
-      for (final key in monthMap.keys) {
-        if (mStr.startsWith(key)) {
-          month = monthMap[key]!;
-          found = true;
-          break;
+      
+      // Check if month is numeric
+      final mNum = int.tryParse(mStr);
+      if (mNum != null && mNum >= 1 && mNum <= 12) {
+        month = mNum;
+        found = true;
+      } else {
+        for (final key in monthMap.keys) {
+          if (mStr.startsWith(key)) {
+            month = monthMap[key]!;
+            found = true;
+            break;
+          }
         }
       }
       if (!found) return null; // If not a valid month, exclude this date
+
+      // Strict day validation to prevent Dart DateTime rollover
+      if (day < 1 || day > 31) return null;
+      if (month == 2 && day > 29) return null;
+      if ((month == 4 || month == 6 || month == 9 || month == 11) && day > 30) return null;
+
+      // Handle 2-digit years
+      if (year < 100) {
+        year += (year > 50 ? 1900 : 2000);
+      }
 
       return DateTime(year, month, day);
     } catch (e) {
@@ -309,6 +318,7 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
         phone: user.phoneNumber ?? '',
         extraData: {
           'License_Number': _licenseNumberController.text.trim(),
+          'license_issue_date': _issueDateController.text.trim(),
           'license_expiry': _expiryDateController.text.trim(),
           'image_license_front': frontUrl,
           'image_license_back': backUrl,
@@ -383,13 +393,12 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
 
               if (confirmed == true) {
                 await FirebaseAuth.instance.signOut();
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserChoice()),
-                    (route) => false,
-                  );
-                }
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UserChoice()),
+                  (route) => false,
+                );
               }
             },
           ),
@@ -418,8 +427,39 @@ class _DriverLicenseScreenState extends State<DriverLicenseScreen> {
             _buildTextField(_licenseNumberController, 'DL-1234567'),
 
             const SizedBox(height: 20),
-            _buildLabel('Valid Upto'),
-            _buildTextField(_expiryDateController, 'DD/MM/YYYY'),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('Issue Date'),
+                      GestureDetector(
+                        onTap: () => _selectDate(context, _issueDateController),
+                        child: AbsorbPointer(
+                          child: _buildTextField(_issueDateController, 'DD-MMM-YYYY'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('Valid Upto'),
+                      GestureDetector(
+                        onTap: () => _selectDate(context, _expiryDateController),
+                        child: AbsorbPointer(
+                          child: _buildTextField(_expiryDateController, 'DD-MMM-YYYY'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
 
             const SizedBox(height: 30),
             Text(

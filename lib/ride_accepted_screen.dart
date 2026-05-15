@@ -6,11 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
-import 'passenger_chat_screen.dart';
+import 'live_chat_screen.dart';
 import 'passenger_live_tracking_screen.dart';
 
 const _kRed = Color(0xFFFC153B);
-const _kGreen = Color(0xFF22C55E);
 const _kBg = Color(0xFFF7F8FA);
 const _kText = Color(0xFF0F172A);
 const _kSub = Color(0xFF64748B);
@@ -30,6 +29,8 @@ class RideAcceptedScreen extends StatefulWidget {
   final LatLng pickupLocation;
   final LatLng dropoffLocation;
   final String userId;
+  final String passengerName;
+  final String passengerImageUrl;
   final String eta;
 
   const RideAcceptedScreen({
@@ -48,7 +49,9 @@ class RideAcceptedScreen extends StatefulWidget {
     required this.pickupLocation,
     required this.dropoffLocation,
     required this.userId,
-    this.eta = '—',
+    this.passengerName = '',
+    this.passengerImageUrl = '',
+    required this.eta,
   });
 
   @override
@@ -153,7 +156,7 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        color: _kGreen,
+        color: _kRed,
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
@@ -280,12 +283,12 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
                             width: 7,
                             height: 7,
                             decoration: const BoxDecoration(
-                                color: _kGreen, shape: BoxShape.circle)),
+                                color: _kRed, shape: BoxShape.circle)),
                         const SizedBox(width: 5),
                         Text('On the way',
                             style: GoogleFonts.outfit(
                                 fontSize: 12,
-                                color: _kGreen,
+                                color: _kRed,
                                 fontWeight: FontWeight.w600)),
                       ],
                     ),
@@ -368,14 +371,14 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
       height: 62,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: _kGreen.withValues(alpha: 0.4), width: 2.5),
+        border: Border.all(color: _kRed.withValues(alpha: 0.4), width: 2.5),
       ),
       child: ClipOval(child: inner),
     );
   }
 
   Widget _defaultAvatar() => Container(
-        color: _kGreen.withValues(alpha: 0.1),
+        color: _kRed.withValues(alpha: 0.1),
         child: Center(
           child: Text(
             widget.driverName.isNotEmpty
@@ -384,7 +387,7 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
             style: GoogleFonts.outfit(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
-                color: _kGreen),
+                color: _kRed),
           ),
         ),
       );
@@ -412,7 +415,7 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                      color: _kGreen, shape: BoxShape.circle)),
+                      color: _kRed, shape: BoxShape.circle)),
               Container(width: 2, height: 30, color: Colors.grey[200]),
               Container(
                   width: 10,
@@ -477,10 +480,10 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
         Expanded(
           child: _infoTile(
             icon: Icons.shield_rounded,
-            iconColor: _kGreen,
+            iconColor: _kRed,
             label: 'Safe Ride',
             value: 'Women Only',
-            valueColor: _kGreen,
+            valueColor: _kRed,
           ),
         ),
       ],
@@ -549,10 +552,14 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PassengerChatScreen(
+                builder: (_) => LiveChatScreen(
                   rideId: widget.rideId,
-                  driverId: widget.driverId,
-                  driverName: widget.driverName,
+                  peerId: widget.driverId,
+                  peerName: widget.driverName,
+                  peerImageUrl: widget.driverImageUrl,
+                  myName: widget.passengerName,
+                  myImageUrl: widget.passengerImageUrl,
+                  isDriver: false,
                 ),
               ),
             ),

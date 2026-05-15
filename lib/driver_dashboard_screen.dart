@@ -14,6 +14,7 @@ import 'driver_wallet_screen.dart';
 import 'driver_profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:musafirah_app/services/database_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_pending_screen.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
@@ -46,9 +47,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   // Search State
   bool _isSearching = false;
   List<Map<String, dynamic>> _searchResults = [];
-  String _driverName = 'Driver';
   String _driverStatus = 'pending';
-  bool _isDataLoading = true;
 
   @override
   void initState() {
@@ -57,7 +56,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     _fetchDriverData();
     _getCurrentLocation();
     _primeRecentTrips();
-    
+
     // Listen to focus to toggle search state if needed
     _startFocus.addListener(_onFocusChange);
     _dropOffFocus.addListener(_onFocusChange);
@@ -69,31 +68,33 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
       final userData = await DatabaseService.getUserData(user.uid, 'Drivers');
       if (userData != null && mounted) {
         setState(() {
-          _driverName = userData['name'] ?? 'Driver';
           _driverStatus = userData['status'] ?? 'pending';
-          _isDataLoading = false;
         });
 
         final isBlocked = userData['isBlocked'] == true;
         if (isBlocked) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const UserPendingScreen(
-              status: 'blocked',
-              collection: 'Drivers',
-            )),
+            MaterialPageRoute(
+              builder: (context) => const UserPendingScreen(
+                status: 'blocked',
+                collection: 'Drivers',
+              ),
+            ),
           );
         } else if (_driverStatus != 'approved') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => UserPendingScreen(
-              status: _driverStatus,
-              collection: 'Drivers',
-            )),
+            MaterialPageRoute(
+              builder: (context) => UserPendingScreen(
+                status: _driverStatus,
+                collection: 'Drivers',
+              ),
+            ),
           );
         }
       } else if (mounted) {
-        setState(() => _isDataLoading = false);
+        // Handle case where user data is not found if necessary
       }
     }
   }
@@ -106,30 +107,36 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     });
   }
 
-  void _primeRecentTrips() {
-    _recentTrips = [
-      _RecentTrip(
-        pickupLabel: "Jinnah International Airport",
-        dropoffLabel: "Clifton Beach",
-        pickup: const LatLng(24.9000, 67.1600),
-        dropoff: const LatLng(24.8000, 67.0300),
-        timestamp: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      _RecentTrip(
-        pickupLabel: "Lucky One Mall",
-        dropoffLabel: "University of Karachi",
-        pickup: const LatLng(24.9400, 67.0900),
-        dropoff: const LatLng(24.9400, 67.1100),
-        timestamp: DateTime.now().subtract(const Duration(days: 4)),
-      ),
-      _RecentTrip(
-        pickupLabel: "Dolmen Mall Clifton",
-        dropoffLabel: "Clifton Beach",
-        pickup: const LatLng(24.8300, 67.0300),
-        dropoff: const LatLng(24.8000, 67.0300),
-        timestamp: DateTime.now().subtract(const Duration(days: 6)),
-      ),
-    ];
+  Future<void> _primeRecentTrips() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final rides = await DatabaseService.getDriverRides(user.uid);
+      if (!mounted) return;
+
+      setState(() {
+        _recentTrips = rides.take(8).map((ride) {
+          final pLabel = ride['pickupAddress'] ?? ride['originAddress'] ?? 'Unknown';
+          final dLabel = ride['dropoffAddress'] ?? ride['destinationAddress'] ?? 'Unknown';
+          return _RecentTrip(
+            pickupLabel: pLabel,
+            dropoffLabel: dLabel,
+            pickup: LatLng(
+              (ride['pickupLat'] ?? ride['originLat'] ?? 0.0).toDouble(),
+              (ride['pickupLng'] ?? ride['originLng'] ?? 0.0).toDouble(),
+            ),
+            dropoff: LatLng(
+              (ride['dropoffLat'] ?? ride['destinationLat'] ?? 0.0).toDouble(),
+              (ride['dropoffLng'] ?? ride['destinationLng'] ?? 0.0).toDouble(),
+            ),
+            timestamp: (ride['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          );
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint("Error priming recent trips: $e");
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -849,63 +856,64 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                           ),
                         ),
 
-                        const SizedBox(height: 20),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            _searchResults.isNotEmpty
-                                ? "Search Results"
-                                : "Recent Trips",
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                        if (_searchResults.isNotEmpty || _recentTrips.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _searchResults.isNotEmpty
+                                  ? "Search Results"
+                                  : "Recent Trips",
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        if (_searchResults.isNotEmpty)
-                          ..._searchResults.map(
-                            (place) => _buildLocationItem(
-                              title:
-                                  place['mainText'] ??
-                                  place['description'] ??
-                                  'Location',
-                              subtitle:
-                                  place['secondaryText'] ??
-                                  place['description'] ??
-                                  '',
-                              onTap: () {
-                                final isPickup =
-                                    _startFocus.hasFocus ||
-                                    _activeFieldIsPickup;
-                                _onPlaceSelected(place, isPickup: isPickup);
-                              },
-                            ),
-                          )
-                        else
-                          ..._recentTrips.map((trip) {
-                            final label =
-                                "${trip.pickupLabel} \u2192 ${trip.dropoffLabel}";
-                            return _buildLocationItem(
-                              title: label,
-                              subtitle: "Last trip • ${trip.pickupLabel}",
-                              onTap: () {
-                                setState(() {
-                                  _pickupLocation = trip.pickup;
-                                  _dropoffLocation = trip.dropoff;
-                                  _startLocationController.text =
-                                      trip.pickupLabel;
-                                  _dropOffController.text = trip.dropoffLabel;
-                                  _isSearching = false;
-                                  _searchResults = [];
-                                });
-                                _syncRoute();
-                              },
-                              isRecent: true,
-                            );
-                          }),
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 10),
+                          if (_searchResults.isNotEmpty)
+                            ..._searchResults.map(
+                              (place) => _buildLocationItem(
+                                title:
+                                    place['mainText'] ??
+                                    place['description'] ??
+                                    'Location',
+                                subtitle:
+                                    place['secondaryText'] ??
+                                    place['description'] ??
+                                    '',
+                                onTap: () {
+                                  final isPickup =
+                                      _startFocus.hasFocus ||
+                                      _activeFieldIsPickup;
+                                  _onPlaceSelected(place, isPickup: isPickup);
+                                },
+                              ),
+                            )
+                          else
+                            ..._recentTrips.map((trip) {
+                              final label =
+                                  "${trip.pickupLabel} \u2192 ${trip.dropoffLabel}";
+                              return _buildLocationItem(
+                                title: label,
+                                subtitle: "Last trip • ${trip.pickupLabel}",
+                                onTap: () {
+                                  setState(() {
+                                    _pickupLocation = trip.pickup;
+                                    _dropoffLocation = trip.dropoff;
+                                    _startLocationController.text =
+                                        trip.pickupLabel;
+                                    _dropOffController.text = trip.dropoffLabel;
+                                    _isSearching = false;
+                                    _searchResults = [];
+                                  });
+                                  _syncRoute();
+                                },
+                                isRecent: true,
+                              );
+                            }),
+                          const SizedBox(height: 20),
+                        ],
                       ],
                     ),
                   );
@@ -948,7 +956,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                   Icons.directions_car_filled_rounded,
                   "My Rides",
                 ),
-                _buildNavItem(2, Icons.wallet, "Wallet"),
+                _buildNavItem(2, Icons.receipt_long_rounded, "Payments"),
                 _buildNavItem(3, Icons.person_outline, "Profile"),
               ],
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../user_choice.dart';
+import 'technical_assistance_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,7 +10,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -56,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           children: [
             // Header with Gradient
             Container(
-              height: size.height * 0.35,
+              height: size.height * 0.40,
               width: double.infinity,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -68,26 +70,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   bottomLeft: Radius.circular(60),
                 ),
               ),
-              child: SafeArea(
-                child: Stack(
-                  children: [
-                    // Back Button
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-                        onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (_) => const UserChoice()),
-                          (route) => false,
-                        ),
-                        tooltip: 'Back to Selection',
-                      ),
-                    ),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              child: Stack(
+                children: [
+                  // Centered Icon & Text
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(height: 20), // Compensate for back button space
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -121,8 +110,28 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  // Back Button (Top Left)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 10,
+                    left: 10,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () =>
+                          Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => const UserChoice(),
+                        ),
+                        (route) => false,
+                      ),
+                      tooltip: 'Back to Selection',
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -160,8 +169,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         style: GoogleFonts.outfit(),
                         decoration: InputDecoration(
                           labelText: 'Username',
-                          labelStyle: GoogleFonts.outfit(color: Colors.grey[600]),
-                          prefixIcon: const Icon(Icons.person_outline_rounded, color: primaryRed),
+                          labelStyle: GoogleFonts.outfit(
+                            color: Colors.grey[600],
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.person_outline_rounded,
+                            color: primaryRed,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(15),
                             borderSide: BorderSide(color: Colors.grey[300]!),
@@ -172,13 +186,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(color: primaryRed, width: 2),
+                            borderSide: const BorderSide(
+                              color: primaryRed,
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: Colors.grey[50],
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Please enter your username';
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your username';
+                          }
                           return null;
                         },
                       ),
@@ -191,15 +210,24 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         style: GoogleFonts.outfit(),
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          labelStyle: GoogleFonts.outfit(color: Colors.grey[600]),
-                          prefixIcon: const Icon(Icons.lock_outline_rounded, color: primaryRed),
+                          labelStyle: GoogleFonts.outfit(
+                            color: Colors.grey[600],
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline_rounded,
+                            color: primaryRed,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
                               color: Colors.grey[400],
                               size: 20,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(15),
@@ -211,13 +239,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(color: primaryRed, width: 2),
+                            borderSide: const BorderSide(
+                              color: primaryRed,
+                              width: 2,
+                            ),
                           ),
                           filled: true,
                           fillColor: Colors.grey[50],
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Please enter your password';
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
                           return null;
                         },
                       ),
@@ -251,7 +284,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       // Forgot Password or Help
                       Center(
                         child: TextButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TechnicalAssistanceScreen(),
+                              ),
+                            );
+                          },
                           child: Text(
                             'Need technical assistance?',
                             style: GoogleFonts.outfit(

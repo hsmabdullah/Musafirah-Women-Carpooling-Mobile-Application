@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'wallet_repository.dart';
+
 import 'rider_profile_screen.dart';
-import 'screens/add_funds_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:musafirah_app/screens/notifications_screen.dart';
+import 'package:musafirah_app/screens/ride_details_screen.dart';
 
 class WalletHistoryScreen extends StatefulWidget {
   const WalletHistoryScreen({super.key});
@@ -13,41 +16,12 @@ class WalletHistoryScreen extends StatefulWidget {
 }
 
 class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
-  late List<WalletEntry> _transactions;
-  late List<RideHistoryEntry> _rideHistory;
-  late double _balance;
-  bool _showTransactions = true;
+  bool _showTransactions = false; // default to Ride History tab
   int _bottomNavIndex = 1;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  void _loadData() {
-    _transactions = WalletRepository.getTransactions();
-    _rideHistory = WalletRepository.getRideHistory();
-    _balance = WalletRepository.balance;
-  }
-
-  Future<void> _addFunds() async {
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => const AddFundsScreen()),
-    );
-    if (result == true) setState(_loadData);
-  }
-
-  void _viewStatements() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Statement feature coming soon.',
-          style: GoogleFonts.inter(),
-        ),
-      ),
-    );
   }
 
   @override
@@ -64,7 +38,7 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Wallet & History',
+          'Ride History',
           style: GoogleFonts.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
@@ -73,140 +47,80 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {},
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsScreen(),
+                ),
+              );
+            },
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseAuth.instance.currentUser != null
+                  ? FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(FirebaseAuth.instance.currentUser!.uid)
+                      .collection('notifications')
+                      .where('isRead', isEqualTo: false)
+                      .snapshots()
+                  : const Stream.empty(),
+              builder: (context, snapshot) {
+                final unreadCount = snapshot.data?.docs.length ?? 0;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(right: 16, top: 12),
+                      child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 24),
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 12,
+                        top: 10,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.yellow[700],
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFFFC153b), width: 1.5),
+                          ),
+                          child: Text(
+                            unreadCount > 9 ? '9+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(metrics),
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: metrics.horizontalPadding),
+          padding:
+              EdgeInsets.symmetric(horizontal: metrics.horizontalPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: metrics.sectionSpacing),
-              _buildBalanceCard(metrics),
               SizedBox(height: metrics.sectionSpacing),
               _buildTabs(metrics),
               SizedBox(height: metrics.sectionSpacingSmall),
               Expanded(
                 child: _showTransactions
-                    ? _buildTransactionsList(metrics)
+                    ? _buildEmptyPaymentsInfo(metrics)
                     : _buildRideHistoryList(metrics),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBalanceCard(_WalletMetrics metrics) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFC153b), Color(0xFFD4002A)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFC153b).withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.all(metrics.cardPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.account_balance_wallet_rounded,
-                  color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Text('Musafirah Wallet',
-                  style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14)),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text('Active',
-                    style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text('Available Balance',
-              style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
-          const SizedBox(height: 4),
-          Text('Rs ${_balance.toStringAsFixed(0)}',
-              style: GoogleFonts.outfit(
-                  fontSize: metrics.balanceFont,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: _addFunds,
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text('+ Add Funds',
-                          style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFFC153b),
-                              fontSize: 13)),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: _viewStatements,
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.4)),
-                    ),
-                    child: Center(
-                      child: Text('Statements',
-                          style: GoogleFonts.outfit(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              fontSize: 13)),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -221,51 +135,189 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
       child: Row(
         children: [
           _TabButton(
-            label: 'Transactions',
-            icon: Icons.receipt_long_rounded,
-            selected: _showTransactions,
-            onTap: () => setState(() => _showTransactions = true),
-          ),
-          _TabButton(
             label: 'Ride History',
             icon: Icons.directions_car_rounded,
             selected: !_showTransactions,
             onTap: () => setState(() => _showTransactions = false),
+          ),
+          _TabButton(
+            label: 'Payments',
+            icon: Icons.receipt_long_rounded,
+            selected: _showTransactions,
+            onTap: () => setState(() => _showTransactions = true),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTransactionsList(_WalletMetrics metrics) {
-    if (_transactions.isEmpty) {
-      return _EmptyState(
-          icon: Icons.receipt_long_rounded, label: 'No transactions yet');
+  Widget _buildRideHistoryList(_WalletMetrics metrics) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const _EmptyState(icon: Icons.error_outline, label: 'Not logged in');
     }
-    return ListView.separated(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(
-          top: 12,
-          bottom: metrics.sectionSpacingSmall + metrics.bottomPadding + 72),
-      itemCount: _transactions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _WalletEntryTile(entry: _transactions[i]),
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('Rides')
+          .where(Filter.or(
+            Filter('passengerId', isEqualTo: uid),
+            Filter('userId', isEqualTo: uid),
+          ))
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFFFC153b)));
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Error loading history: ${snapshot.error}', 
+                style: GoogleFonts.outfit(),
+                textAlign: TextAlign.center,
+              ),
+            )
+          );
+        }
+
+        final docs = snapshot.data?.docs.toList() ?? [];
+        
+        // Sort locally to avoid Firebase composite index requirement
+        docs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aTime = aData['createdAt'] as Timestamp?;
+          final bTime = bData['createdAt'] as Timestamp?;
+          if (aTime == null && bTime == null) return 0;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime); // descending
+        });
+
+        if (docs.isEmpty) {
+          return const _EmptyState(
+              icon: Icons.directions_car_rounded, label: 'No rides recorded yet');
+        }
+
+        return ListView.separated(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.only(
+              top: 12,
+              bottom:
+                  metrics.sectionSpacingSmall + metrics.bottomPadding + 72),
+          itemCount: docs.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, i) {
+            final data = docs[i].data() as Map<String, dynamic>;
+            return _RideHistoryTile(data: data);
+          },
+        );
+      },
     );
   }
 
-  Widget _buildRideHistoryList(_WalletMetrics metrics) {
-    if (_rideHistory.isEmpty) {
-      return _EmptyState(
-          icon: Icons.directions_car_rounded, label: 'No rides recorded yet');
-    }
-    return ListView.separated(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(
-          top: 12,
-          bottom: metrics.sectionSpacingSmall + metrics.bottomPadding + 72),
-      itemCount: _rideHistory.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _RideHistoryTile(ride: _rideHistory[i]),
+  Widget _buildEmptyPaymentsInfo(_WalletMetrics metrics) {
+    // Inform the user how payments work
+    return ListView(
+      padding: const EdgeInsets.only(top: 16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3))
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFC153b).withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.credit_card_rounded,
+                    color: Color(0xFFFC153b), size: 30),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'How Payment Works',
+                style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A)),
+              ),
+              const SizedBox(height: 20),
+              _buildInfoRow(
+                icon: Icons.payments_outlined,
+                title: 'Cash Payment',
+                subtitle:
+                    'Pay the driver directly in cash at the end of your ride.',
+              ),
+              const SizedBox(height: 14),
+              _buildInfoRow(
+                icon: Icons.credit_card_rounded,
+                title: 'Online Payment via Stripe',
+                subtitle:
+                    'If you don\'t have cash, you can pay securely online using your debit/credit card through Stripe.',
+              ),
+              const SizedBox(height: 14),
+              _buildInfoRow(
+                icon: Icons.check_circle_outline_rounded,
+                title: 'No Wallet Needed',
+                subtitle:
+                    'You don\'t need to top up any wallet. Payment is made directly at the end of each ride.',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFC153b).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: const Color(0xFFFC153b), size: 18),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: const Color(0xFF0F172A))),
+              const SizedBox(height: 3),
+              Text(subtitle,
+                  style: GoogleFonts.outfit(
+                      fontSize: 12, color: const Color(0xFF64748B))),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -283,7 +335,8 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -297,8 +350,8 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
                 },
               ),
               _NavItem(
-                icon: Icons.account_balance_wallet_rounded,
-                label: 'Wallet',
+                icon: Icons.history_rounded,
+                label: 'History',
                 selected: _bottomNavIndex == 1,
                 onTap: () => setState(() => _bottomNavIndex = 1),
               ),
@@ -324,6 +377,8 @@ class _WalletHistoryScreenState extends State<WalletHistoryScreen> {
     );
   }
 }
+
+// ── Shared Widgets ──────────────────────────────────────────────────────────
 
 class _TabButton extends StatelessWidget {
   final String label;
@@ -441,8 +496,9 @@ class _NavItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon,
-                color:
-                    selected ? const Color(0xFFFC153b) : Colors.grey[400],
+                color: selected
+                    ? const Color(0xFFFC153b)
+                    : Colors.grey[400],
                 size: 22),
           ),
           const SizedBox(height: 2),
@@ -460,84 +516,43 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _WalletEntryTile extends StatelessWidget {
-  const _WalletEntryTile({required this.entry});
-  final WalletEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCredit = entry.isCredit;
-    final color = isCredit ? Colors.green[600]! : const Color(0xFFFC153b);
-    final icon = isCredit
-        ? Icons.arrow_downward_rounded
-        : Icons.arrow_upward_rounded;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(entry.title,
-                    style: GoogleFonts.outfit(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: const Color(0xFF0F172A))),
-                const SizedBox(height: 2),
-                Text(entry.subtitle,
-                    style: GoogleFonts.outfit(
-                        color: Colors.grey[500], fontSize: 12)),
-              ],
-            ),
-          ),
-          Text(
-            '${isCredit ? '+' : '-'} Rs ${entry.amount.abs().toStringAsFixed(0)}',
-            style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w700,
-                color: color,
-                fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _RideHistoryTile extends StatelessWidget {
-  const _RideHistoryTile({required this.ride});
-  final RideHistoryEntry ride;
+  const _RideHistoryTile({required this.data});
+  final Map<String, dynamic> data;
+
+  String _formatTimestamp(DateTime dt) {
+    return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = ride.status.toLowerCase().contains('complete');
-    final statusColor = isCompleted ? Colors.green[600]! : Colors.orange[600]!;
+    final status = data['status'] as String? ?? 'completed';
+    final isCompleted = status.toLowerCase().contains('complete');
+    final statusColor =
+        isCompleted ? Colors.green[600]! : Colors.orange[600]!;
+    
+    final pickup = data['pickupAddress'] as String? ?? 'Unknown Location';
+    final dropoff = data['dropoffAddress'] as String? ?? 'Unknown Destination';
+    final fare = (data['fare'] as num?)?.toDouble() ?? 0.0;
+    
+    final timestamp = data['createdAt'] as Timestamp?;
+    final dateString = timestamp != null 
+        ? _formatTimestamp(timestamp.toDate()) 
+        : 'Unknown Date';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RideDetailsScreen(rideData: data),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -566,7 +581,7 @@ class _RideHistoryTile extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(ride.pickup,
+                      child: Text(pickup,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.outfit(
@@ -578,13 +593,13 @@ class _RideHistoryTile extends StatelessWidget {
                         size: 12, color: Color(0xFF94A3B8)),
                   ],
                 ),
-                Text(ride.dropoff,
+                Text(dropoff,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.outfit(
                         fontSize: 12, color: Colors.grey[500])),
                 const SizedBox(height: 4),
-                Text(WalletRepository.formatTimestamp(ride.timestamp),
+                Text(dateString,
                     style: GoogleFonts.outfit(
                         fontSize: 11, color: Colors.grey[400])),
               ],
@@ -594,7 +609,7 @@ class _RideHistoryTile extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('Rs ${ride.fare.toStringAsFixed(0)}',
+              Text('Rs ${fare.toStringAsFixed(0)}',
                   style: GoogleFonts.outfit(
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFFFC153b),
@@ -606,7 +621,7 @@ class _RideHistoryTile extends StatelessWidget {
                 decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6)),
-                child: Text(ride.status,
+                child: Text(status.toUpperCase(),
                     style: GoogleFonts.outfit(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -616,7 +631,7 @@ class _RideHistoryTile extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -625,37 +640,15 @@ class _WalletMetrics {
     required this.horizontalPadding,
     required this.sectionSpacing,
     required this.sectionSpacingSmall,
-    required this.cardPadding,
-    required this.cardRadius,
-    required this.cardTitleFont,
-    required this.cardSubtitleFont,
-    required this.smallSpacing,
-    required this.iconPadding,
-    required this.iconSize,
-    required this.buttonRadius,
     required this.appBarFont,
-    required this.balanceFont,
-    required this.buttonPadding,
     required this.bottomPadding,
-    required this.smallFont,
   });
 
   final double horizontalPadding;
   final double sectionSpacing;
   final double sectionSpacingSmall;
-  final double cardPadding;
-  final double cardRadius;
-  final double cardTitleFont;
-  final double cardSubtitleFont;
-  final double smallSpacing;
-  final double iconPadding;
-  final double iconSize;
-  final double buttonRadius;
   final double appBarFont;
-  final double balanceFont;
-  final double buttonPadding;
   final double bottomPadding;
-  final double smallFont;
 
   static _WalletMetrics fromContext(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -665,19 +658,8 @@ class _WalletMetrics {
       horizontalPadding: (width * 0.06).clamp(16.0, 28.0),
       sectionSpacing: (height * 0.03).clamp(16.0, 32.0),
       sectionSpacingSmall: (height * 0.02).clamp(12.0, 24.0),
-      cardPadding: (width * 0.045).clamp(14.0, 24.0),
-      cardRadius: (width * 0.035).clamp(12.0, 20.0),
-      cardTitleFont: (width * 0.045).clamp(16.0, 20.0),
-      cardSubtitleFont: (width * 0.038).clamp(13.0, 16.0),
-      smallSpacing: (height * 0.012).clamp(6.0, 16.0),
-      iconPadding: (width * 0.025).clamp(8.0, 18.0),
-      iconSize: (width * 0.06).clamp(20.0, 30.0),
-      buttonRadius: (width * 0.04).clamp(12.0, 18.0),
       appBarFont: (width * 0.05).clamp(18.0, 22.0),
-      balanceFont: (width * 0.08).clamp(28.0, 36.0),
-      buttonPadding: (height * 0.02).clamp(12.0, 18.0),
       bottomPadding: MediaQuery.of(context).padding.bottom,
-      smallFont: (width * 0.032).clamp(12.0, 14.0),
     );
   }
 }

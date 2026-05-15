@@ -4,7 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'chat_screen.dart';
+import 'live_chat_screen.dart';
 import 'driver_payment_screen.dart';
 import 'package:musafirah_app/driver_data.dart';
 
@@ -18,6 +18,14 @@ class DriverNavigationScreen extends StatefulWidget {
   final LatLng end;
   final String passengerName;
   final int price;
+  final String rideId;
+  final String passengerId;
+  final String passengerImageUrl;
+  final String paymentMethod;
+  final String pickupAddress;
+  final String dropoffAddress;
+  final String driverName;
+  final String driverImageUrl;
 
   const DriverNavigationScreen({
     super.key,
@@ -25,6 +33,14 @@ class DriverNavigationScreen extends StatefulWidget {
     required this.end,
     required this.passengerName,
     required this.price,
+    required this.rideId,
+    required this.passengerId,
+    this.passengerImageUrl = '',
+    this.paymentMethod = 'Cash',
+    this.pickupAddress = '',
+    this.dropoffAddress = '',
+    this.driverName = '',
+    this.driverImageUrl = '',
   });
 
   @override
@@ -157,6 +173,10 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
               builder: (_) => DriverPaymentScreen(
                 passengerName: widget.passengerName,
                 price: widget.price,
+                paymentMethod: widget.paymentMethod,
+                pickup: widget.pickupAddress,
+                dropoff: widget.dropoffAddress,
+                rideId: widget.rideId,
               ),
             ),
           );
@@ -334,8 +354,14 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                  peerName: widget.passengerName)),
+                              builder: (_) => LiveChatScreen(
+                                  rideId: widget.rideId,
+                                  peerId: widget.passengerId,
+                                  peerName: widget.passengerName,
+                                  peerImageUrl: widget.passengerImageUrl,
+                                  myName: widget.driverName,
+                                  myImageUrl: widget.driverImageUrl,
+                                  isDriver: true)),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -592,8 +618,8 @@ class _CompleteTripSheet extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-                color: Colors.green[50], shape: BoxShape.circle),
-            child: Icon(Icons.flag_rounded, color: Colors.green[600], size: 34),
+                color: _kRed.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.flag_rounded, color: _kRed, size: 34),
           ),
           const SizedBox(height: 16),
           Text('Complete Trip?',
@@ -631,11 +657,11 @@ class _CompleteTripSheet extends StatelessWidget {
                     onConfirm();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[600],
+                    backgroundColor: _kRed,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     elevation: 4,
-                    shadowColor: Colors.green.withValues(alpha: 0.35),
+                    shadowColor: _kRed.withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                   ),

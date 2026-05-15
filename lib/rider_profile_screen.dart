@@ -8,9 +8,8 @@ import 'package:musafirah_app/wallet_history_screen.dart';
 import 'package:musafirah_app/screens/edit_profile_screen.dart';
 import 'package:musafirah_app/screens/support_screen.dart';
 import 'package:musafirah_app/screens/privacy_security_screen.dart';
+import 'package:musafirah_app/screens/ride_details_screen.dart';
 import 'package:musafirah_app/user_choice.dart';
-import 'package:musafirah_app/providers/theme_provider.dart';
-import 'package:provider/provider.dart';
 
 const _kRed = Color(0xFFFC153B);
 const _kRedDark = Color(0xFFD4002A);
@@ -60,7 +59,8 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
   String get _name => _userData?['name'] ?? 'Rider';
   String get _phone => _userData?['phone'] ?? '';
   double get _rating => (_userData?['rating'] as num?)?.toDouble() ?? 0.0;
-  int get _totalRides => (_userData?['totalRides'] as int?) ?? 0;
+  int get _totalRides => _rideHistory.length;
+  String get _paymentMethod => _userData?['paymentMethod'] ?? 'Stripe';
   /// Returns the best available image string — prefers the manually set
   /// profileImageUrl, falls back to the registration selfie (image_selfie).
   String get _profileImageUrl =>
@@ -73,11 +73,10 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
     final size = MediaQuery.of(context).size;
     final isTablet = size.width > 600;
 
-    // Sync theme-aware colors before building any sub-widgets.
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    _kCard = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    _kText = isDark ? Colors.white : const Color(0xFF0F172A);
-    _kSubText = isDark ? Colors.grey.shade400 : const Color(0xFF64748B);
+    // Sync light mode colors before building any sub-widgets.
+    _kCard = Colors.white;
+    _kText = const Color(0xFF0F172A);
+    _kSubText = const Color(0xFF64748B);
 
     if (_isLoading) {
       return Scaffold(
@@ -108,9 +107,9 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
                   const SizedBox(height: 10),
                   _buildRideHistory(),
                   const SizedBox(height: 20),
-                  _buildSectionLabel('Wallet & Payments'),
+                  _buildSectionLabel('Payment & History'),
                   const SizedBox(height: 10),
-                  _buildWalletCard(),
+                  _buildPaymentInfoCard(),
                   const SizedBox(height: 20),
                   _buildSectionLabel('Account'),
                   const SizedBox(height: 10),
@@ -323,9 +322,7 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
           _Divider(),
           _StatCell(value: ratingDisplay, label: 'Rating'),
           _Divider(),
-          _StatCell(
-              value: 'Rs ${WalletRepository.balance.toStringAsFixed(0)}',
-              label: 'Balance'),
+          _StatCell(value: _paymentMethod, label: 'Payment'),
         ],
       ),
     );
@@ -355,21 +352,40 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
     );
   }
 
-  Widget _buildWalletCard() {
+  Future<void> _togglePaymentMethod() async {
+    final newMethod = _paymentMethod == 'Stripe' ? 'Cash' : 'Stripe';
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _userData?['paymentMethod'] = newMethod);
+    await DatabaseService.updatePassenger(
+      uid: user.uid,
+      fields: {'paymentMethod': newMethod},
+    );
+    _showSnack('Payment method updated to $newMethod');
+  }
+
+  Widget _buildPaymentInfoCard() {
     return _SettingsRow(
-      icon: Icons.account_balance_wallet_rounded,
+      icon: Icons.credit_card_rounded,
       iconColor: _kRed,
       iconBg: _kRed.withValues(alpha: 0.1),
-      title: 'Wallet Balance',
-      trailing: Text(
-        'Rs ${WalletRepository.balance.toStringAsFixed(0)}',
-        style: GoogleFonts.outfit(
-            fontSize: 15, fontWeight: FontWeight.w700, color: _kRed),
+      title: 'Payment Method',
+      subtitle: 'Tap to toggle: Cash or Online via Stripe',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: (_paymentMethod == 'Stripe' ? Colors.green : Colors.orange)
+              .withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(_paymentMethod,
+            style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _paymentMethod == 'Stripe' ? Colors.green[700] : Colors.orange[700])),
       ),
-      onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => const WalletHistoryScreen())),
+      onTap: _togglePaymentMethod,
     );
   }
 
@@ -419,23 +435,6 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        Consumer<ThemeProvider>(
-          builder: (context, themeProvider, _) => _SettingsRow(
-            icon: themeProvider.isDark
-                ? Icons.light_mode_rounded
-                : Icons.dark_mode_rounded,
-            iconColor: const Color(0xFF8B5CF6),
-            iconBg: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-            title: 'Night Mode',
-            subtitle: themeProvider.isDark ? 'On' : 'Off',
-            trailing: Switch(
-              value: themeProvider.isDark,
-              onChanged: (_) => themeProvider.toggle(),
-              activeThumbColor: const Color(0xFF8B5CF6),
-            ),
-            onTap: () => themeProvider.toggle(),
-          ),
-        ),
       ],
     );
   }
@@ -528,9 +527,9 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             },
           ),
           _NavItem(
-            icon: Icons.account_balance_wallet_outlined,
-            activeIcon: Icons.account_balance_wallet_rounded,
-            label: 'Wallet',
+            icon: Icons.history_outlined,
+            activeIcon: Icons.history_rounded,
+            label: 'History',
             isActive: _navIndex == 1,
             onTap: () {
               setState(() => _navIndex = 1);
@@ -551,6 +550,18 @@ class _RiderProfileScreenState extends State<RiderProfileScreen> {
             onTap: () => setState(() => _navIndex = 2),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.outfit()),
+        backgroundColor: const Color(0xFFFC153B),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -583,97 +594,107 @@ class _FirestoreRideTile extends StatelessWidget {
       }
     } catch (_) {}
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 3)),
-        ],
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: _kRed.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.directions_car_rounded,
-                color: _kRed, size: 22),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RideDetailsScreen(rideData: ride),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(pickup,
-                          style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _kText),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    Icon(Icons.arrow_forward_rounded,
-                        size: 13, color: _kSubText),
-                    Expanded(
-                      child: Text(dropoff,
-                          style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _kText),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 3)),
+          ],
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _kRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.directions_car_rounded,
+                  color: _kRed, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(pickup,
+                            style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _kText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      Icon(Icons.arrow_forward_rounded,
+                          size: 13, color: _kSubText),
+                      Expanded(
+                        child: Text(dropoff,
+                            style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _kText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right),
+                      ),
+                    ],
+                  ),
+                  if (ts != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      WalletRepository.formatTimestamp(ts),
+                      style: GoogleFonts.outfit(
+                          fontSize: 11, color: _kSubText),
                     ),
                   ],
-                ),
-                if (ts != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    WalletRepository.formatTimestamp(ts),
-                    style: GoogleFonts.outfit(
-                        fontSize: 11, color: _kSubText),
-                  ),
                 ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('Rs ${fare.toStringAsFixed(0)}',
+                    style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _kText)),
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(statusLabel,
+                      style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor)),
+                ),
               ],
             ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Rs ${fare.toStringAsFixed(0)}',
-                  style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _kText)),
-              const SizedBox(height: 4),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(statusLabel,
-                    style: GoogleFonts.outfit(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: statusColor)),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

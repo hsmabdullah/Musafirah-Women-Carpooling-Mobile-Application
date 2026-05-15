@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 import 'widgets/bottom_nav.dart';
 
 class LiveRidesScreen extends StatefulWidget {
@@ -447,6 +448,26 @@ class _RideCard extends StatelessWidget {
                 _detailRow('Completed', _formatDate(ride['completedAt'])),
               if (ride['estimatedTime'] != null)
                 _detailRow('Est. Time', '${ride['estimatedTime']} min'),
+              if (ride['paymentScreenshotUrl'] != null) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Payment Screenshot',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image(
+                    image: AuthService.getImageProvider(ride['paymentScreenshotUrl']),
+                    width: double.infinity,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
             ],
           ),

@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:musafirah_app/cnic_verification_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
@@ -36,13 +35,22 @@ class _PassengerEmailSignupScreenState extends State<PassengerEmailSignupScreen>
       );
 
       if (credential != null && credential.user != null) {
-        // Save passenger data
+        final uid = credential.user!.uid;
+
+        // Save passenger data to the Passengers collection
         await DatabaseService.savePassenger(
-          uid: credential.user!.uid,
+          uid: uid,
           phone: '', // Phone is optional in email flow
           email: _emailController.text.trim(),
           name: _nameController.text.trim(),
           status: 'pending',
+        );
+
+        // CRITICAL: Remove any stale Driver records for this UID so the
+        // account can never be misidentified as a driver.
+        await DatabaseService.cleanupStaleRoleData(
+          uid: uid,
+          keepCollection: 'Passengers',
         );
 
         if (!mounted) return;
@@ -89,6 +97,10 @@ class _PassengerEmailSignupScreenState extends State<PassengerEmailSignupScreen>
       appBar: AppBar(
         backgroundColor: const Color(0xFFFC153b),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           'Passenger Sign Up',
           style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600),
@@ -137,6 +149,8 @@ class _PassengerEmailSignupScreenState extends State<PassengerEmailSignupScreen>
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   decoration: _inputDecoration('yourname@example.com', Icons.email_outlined),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email is required';

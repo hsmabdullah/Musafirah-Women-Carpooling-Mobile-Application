@@ -14,6 +14,9 @@ class DriverData {
 }
 
 class AcceptedRide {
+  final String rideId;
+  final String passengerId;
+  final String passengerImageUrl;
   final String passengerName;
   final String pickupName;
   final String dropoffName;
@@ -21,8 +24,12 @@ class AcceptedRide {
   final dynamic dropoff; // LatLng
   final int price;
   final DateTime acceptedAt;
+  final String paymentMethod; // 'Cash' or 'Online'
 
   AcceptedRide({
+    this.rideId = '',
+    this.passengerId = '',
+    this.passengerImageUrl = '',
     required this.passengerName,
     required this.pickupName,
     required this.dropoffName,
@@ -30,5 +37,6 @@ class AcceptedRide {
     required this.dropoff,
     required this.price,
     required this.acceptedAt,
+    this.paymentMethod = 'Cash',
   });
 }

@@ -258,7 +258,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     stream: FirebaseFirestore.instance
                         .collection('Rides')
                         .where('status', whereIn: ['active', 'in_progress'])
-                        .orderBy('createdAt', descending: true)
                         .limit(3)
                         .snapshots(),
                     builder: (context, snapshot) {
@@ -420,7 +419,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('Drivers')
-                        .orderBy('createdAt', descending: true)
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) return const Center(child: Text('Error loading drivers'));

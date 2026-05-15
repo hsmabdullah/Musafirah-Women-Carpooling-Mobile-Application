@@ -67,36 +67,54 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
       if (credential != null && credential.user != null) {
         final uid = credential.user!.uid;
 
-        // Always resolve the Firestore role so we can cross-check it against
-        // the login screen the user came from (widget.role).
-        final firestoreRole = await DatabaseService.getUserRole(uid);
+        // STRICT role check — only the collection matching the login screen is queried.
+        // No fallthrough between collections ever happens.
+        String? firestoreRole = await DatabaseService.getUserRole(
+          uid,
+          expectedRole: widget.role,
+        );
 
         if (!mounted) return;
 
-        // If the user selected "Passenger Login" but is registered as a driver
-        // (or vice-versa), tell them clearly and sign them back out.
-        final expectedRole = widget.role; // 'passenger', 'driver', or null
-        if (expectedRole != null &&
-            firestoreRole != null &&
-            firestoreRole != expectedRole) {
-          final correctScreen =
-              firestoreRole == 'driver' ? 'Driver Login' : 'Passenger Login';
+        // If not found in the expected collection, the user is either:
+        // (a) trying to log in via the wrong role screen, or
+        // (b) has not completed signup yet.
+        if (firestoreRole == null && widget.role != null) {
           await FirebaseAuth.instance.signOut();
           if (!mounted) return;
-          _showError(
-            'This account is a ${firestoreRole == 'driver' ? 'Driver' : 'Passenger'} account. '
-            'Please use "$correctScreen".',
-          );
+
+          // Check if they exist in the OTHER collection to give a better error.
+          final otherRole = widget.role == 'passenger' ? 'driver' : 'passenger';
+          final otherRoleExists = await DatabaseService.getUserRole(uid, expectedRole: otherRole);
+
+          if (!mounted) return;
+
+          if (otherRoleExists != null) {
+            // They signed up as the other role — show mismatch dialog.
+            _showRoleMismatchDialog(uid, otherRoleExists, widget.role!);
+          } else {
+            // Account exists in Firebase Auth but not in Firestore at all.
+            _showError('Account not found. Please sign up first.');
+          }
           return;
         }
+
+        // 2. If firestoreRole doesn't match widget.role, it's a conflict!
+        if (widget.role != null && firestoreRole != widget.role) {
+          await FirebaseAuth.instance.signOut();
+          if (!mounted) return;
+          _showRoleMismatchDialog(uid, firestoreRole ?? 'unknown', widget.role!);
+          return;
+        }
+
+        // 3. Save successful role locally for auto-login
+        final resolvedRole = widget.role ?? firestoreRole ?? 'passenger';
+        await AuthService.saveLastUsedRole(resolvedRole);
 
         // Save FCM token for push notifications
         await NotificationService.saveTokenForCurrentUser();
 
         if (!mounted) return;
-
-        // Resolve destination: screen-level role wins; fall back to Firestore.
-        final resolvedRole = expectedRole ?? firestoreRole ?? 'passenger';
 
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
@@ -119,6 +137,59 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showRoleMismatchDialog(String uid, String currentRole, String targetRole) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Role Conflict Detected', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Your account is currently registered as a ${currentRole == 'driver' ? 'Driver' : 'Passenger'}. '
+          'Would you like to switch it to a ${targetRole == 'driver' ? 'Driver' : 'Passenger'} account?',
+          style: GoogleFonts.outfit(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              
+              final success = await DatabaseService.moveUserToCollection(
+                uid: uid,
+                fromCollection: currentRole == 'driver' ? 'Drivers' : 'Passengers',
+                toCollection: targetRole == 'driver' ? 'Drivers' : 'Passengers',
+                newRole: targetRole,
+              );
+              
+              if (!context.mounted) {
+                return;
+              }
+              setState(() => _isLoading = false);
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Account successfully switched! Please log in again.', style: GoogleFonts.outfit()),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                _showError('Failed to switch account. Please contact support.');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFC153b),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text('Switch Role', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showError(String message) {
@@ -280,14 +351,19 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             style: GoogleFonts.outfit(fontSize: 15),
                             decoration: _inputDecoration(
                               'yourname@example.com',
                               Icons.email_outlined,
                             ),
-                            validator: (v) => (v == null || v.isEmpty)
-                                ? 'Email is required'
-                                : null,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Email is required';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 20),
 
@@ -314,9 +390,12 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                                     ),
                                   ),
                                 ),
-                            validator: (v) => (v == null || v.isEmpty)
-                                ? 'Password is required'
-                                : null,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Password is required';
+                              }
+                              return null;
+                            },
                           ),
 
                           // Forgot password

@@ -574,7 +574,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
             style: GoogleFonts.outfit(
                 fontWeight: FontWeight.w700, color: _kText)),
         content: Text(
-          'This action is permanent. All your data, ride history, and wallet balance will be deleted and cannot be recovered.\n\nTo delete your account, please contact our support team.',
+          'This action is permanent. All your data and ride history will be deleted and cannot be recovered.\n\nTo delete your account, please contact our support team.',
           style: GoogleFonts.outfit(color: _kSubText, height: 1.5),
         ),
         actions: [

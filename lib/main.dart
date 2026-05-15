@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:musafirah_app/firebase_options.dart';
 import 'package:musafirah_app/splash_screen.dart';
@@ -7,17 +8,33 @@ import 'package:musafirah_app/passenger_dashboard_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
 import 'package:musafirah_app/services/database_service.dart';
 import 'package:musafirah_app/services/notification_service.dart';
-import 'package:musafirah_app/providers/theme_provider.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:musafirah_app/screens/admin/admin_login_screen.dart' as admin;
 import 'package:musafirah_app/screens/admin/admin_dashboard_screen.dart'
     as admin;
 import 'package:musafirah_app/screens/admin/drivers_list_screen.dart' as admin;
 import 'package:musafirah_app/screens/admin/riders_list_screen.dart' as admin;
 import 'package:musafirah_app/screens/admin/live_rides_screen.dart' as admin;
-import 'package:provider/provider.dart';
+
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Fix for CERTIFICATE_VERIFY_FAILED error in some network environments
+  HttpOverrides.global = MyHttpOverrides();
+
+  // Initialize Stripe
+  Stripe.publishableKey =
+      "pk_test_51TFXeuH0Dn2ZkytqM7S9bVbDd6xWsCsfGqkD8NNHd5eZH1XuxAff4yredcagA9RH0NyB592Q2UxwPjcYr2l0QjzG00jklgVyqb";
+  await Stripe.instance.applySettings();
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -33,6 +50,9 @@ void main() async {
   // Initialise notifications (FCM + local)
   await NotificationService.init();
 
+  // CLEANUP: Delete all rejected accounts (non-blocking)
+  DatabaseService.deleteAllRejectedUsers();
+
   Widget home = const SplashScreen();
 
   if (!AuthService.useDemoMode) {
@@ -42,24 +62,29 @@ void main() async {
 
       if (credential != null && credential.user != null) {
         final uid = credential.user!.uid;
-        String? role = await DatabaseService.getUserRole(uid);
-        role ??= 'passenger';
+
+        // Use the locally saved role if available to prevent misidentification
+        final lastRole = await AuthService.getLastUsedRole();
+
+        String? role = await DatabaseService.getUserRole(
+          uid,
+          expectedRole: lastRole,
+        );
+        role ??= lastRole ?? 'passenger';
+
         home = role == 'driver'
             ? const DriverDashboardScreen()
             : const PassengerDashboardScreen();
-        debugPrint('main: email-link deep sign-in OK → role=$role');
+        debugPrint(
+          'main: email-link deep sign-in OK → role=$role (Local: $lastRole)',
+        );
       }
     } catch (e) {
       debugPrint('main: email-link check skipped — $e');
     }
   }
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
-      child: MyApp(home: home),
-    ),
-  );
+  runApp(MyApp(home: home));
 }
 
 class MyApp extends StatelessWidget {
@@ -69,31 +94,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
     return MaterialApp(
       title: 'Musafirah',
       debugShowCheckedModeBanner: false,
       locale: const Locale('en', 'US'),
       supportedLocales: const [Locale('en', 'US')],
-      themeMode: themeProvider.themeMode,
+      themeMode: ThemeMode.light,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFC153b)),
         useMaterial3: true,
         brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFC153b),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        cardColor: const Color(0xFF1E1E1E),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1A1A1A),
-          foregroundColor: Colors.white,
-        ),
       ),
       home: home,
       routes: {

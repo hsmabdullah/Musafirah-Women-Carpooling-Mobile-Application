@@ -53,9 +53,9 @@ class _SupportScreenState extends State<SupportScreen> {
           'If your driver is late or doesn\'t arrive, you can cancel the ride from the active rides screen and book another driver.',
     ),
     _FaqItem(
-      question: 'How do I add money to my wallet?',
+      question: 'How do I pay for my ride?',
       answer:
-          'Go to the Wallet tab and tap "Top Up". You can add funds using your preferred payment method.',
+          'You can pay directly in cash to the driver or use Online Payment (Stripe) with your credit/debit card at the end of the ride. No wallet top-up is required.',
     ),
     _FaqItem(
       question: 'Is my data safe?',
@@ -298,7 +298,7 @@ class _SupportScreenState extends State<SupportScreen> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: InputDecoration(
                 labelText: 'Category',
                 labelStyle:

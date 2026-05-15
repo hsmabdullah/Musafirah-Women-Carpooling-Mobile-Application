@@ -224,6 +224,9 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
           r.dropoffName == ride.dropoffName);
       if (!alreadyAdded) {
         DriverData.acceptedRides.add(AcceptedRide(
+          rideId: ride.rideId ?? '',
+          passengerId: ride.userId ?? '',
+          passengerImageUrl: ride.passengerImageUrl,
           passengerName: ride.name,
           pickupName: ride.pickupName,
           dropoffName: ride.dropoffName,
@@ -231,6 +234,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
           dropoff: ride.dropoff,
           price: ride.price,
           acceptedAt: DateTime.now(),
+          paymentMethod: ride.paymentMethod,
         ));
       }
 
@@ -284,6 +288,14 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                           end: ride.dropoff,
                           passengerName: ride.name,
                           price: ride.price,
+                          rideId: ride.rideId ?? '',
+                          passengerId: ride.userId ?? '',
+                          passengerImageUrl: ride.passengerImageUrl,
+                          paymentMethod: ride.paymentMethod,
+                          pickupAddress: ride.pickupName,
+                          dropoffAddress: ride.dropoffName,
+                          driverName: _driverProfile?['name'] ?? '',
+                          driverImageUrl: _driverProfile?['profileImageUrl'] ?? '',
                         ),
                       ),
                     );
@@ -437,6 +449,8 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                   driverToPickupKm: driverToPickupKm,
                   price: ((data['fare'] as num?)?.toInt()) ?? (rideDistKm * 25).toInt(),
                   rating: 5.0,
+                  passengerImageUrl: data['passengerImageUrl'] as String? ?? '',
+                  paymentMethod: data['paymentMethod'] as String? ?? 'Cash',
                 );
               })
                 .where(_isRideNearby)
@@ -849,6 +863,8 @@ class _RideRequest {
   final double driverToPickupKm;
   final int price;
   final double rating;
+  final String passengerImageUrl;
+  final String paymentMethod;
 
   _RideRequest({
     this.rideId,
@@ -862,5 +878,7 @@ class _RideRequest {
     this.driverToPickupKm = 0.0,
     required this.price,
     required this.rating,
+    this.passengerImageUrl = '',
+    this.paymentMethod = 'Cash',
   });
 }

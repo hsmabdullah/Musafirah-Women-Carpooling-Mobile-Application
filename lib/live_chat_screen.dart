@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -6,45 +9,100 @@ import 'package:musafirah_app/services/chat_service.dart';
 
 const _kRed = Color(0xFFFC153b);
 
-class PassengerChatScreen extends StatefulWidget {
-  const PassengerChatScreen({
+class LiveChatScreen extends StatefulWidget {
+  final String rideId;
+  final String peerId;
+  final String peerName;
+  final String peerImageUrl;
+  final String myName;
+  final String myImageUrl;
+  final bool isDriver; // True if the current user is the driver
+
+  const LiveChatScreen({
     super.key,
     required this.rideId,
-    required this.driverId,
-    required this.driverName,
+    required this.peerId,
+    required this.peerName,
+    this.peerImageUrl = '',
+    this.myName = '',
+    this.myImageUrl = '',
+    required this.isDriver,
   });
 
-  final String rideId;
-  final String driverId;
-  final String driverName;
-
   @override
-  State<PassengerChatScreen> createState() => _PassengerChatScreenState();
+  State<LiveChatScreen> createState() => _LiveChatScreenState();
 }
 
-class _PassengerChatScreenState extends State<PassengerChatScreen> {
+class _LiveChatScreenState extends State<LiveChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _hasText = false;
 
-  String get _myId => FirebaseAuth.instance.currentUser?.uid ?? 'passenger';
-  String get _myName =>
-      FirebaseAuth.instance.currentUser?.displayName ?? 'You';
+  String _currentMyName = '';
+  String _currentMyImageUrl = '';
 
-  static const _quickReplies = [
-    'On my way!',
-    'Please wait 2 mins',
-    'I\'m at the gate',
-    'Almost there!',
-  ];
+  String get _myId => FirebaseAuth.instance.currentUser?.uid ?? 'unknown_user';
+
+  late final List<String> _quickReplies;
 
   @override
   void initState() {
     super.initState();
+    _currentMyName = widget.myName;
+    _currentMyImageUrl = widget.myImageUrl;
+
+    _loadMyProfile();
+
+    _quickReplies = widget.isDriver
+        ? [
+            'I\'m here!',
+            'Please come out',
+            'I am stuck in traffic',
+            'On my way!',
+          ]
+        : [
+            'On my way!',
+            'Please wait 2 mins',
+            'I\'m at the gate',
+            'Almost there!',
+          ];
+
     _controller.addListener(() {
       final hasText = _controller.text.trim().isNotEmpty;
       if (hasText != _hasText) setState(() => _hasText = hasText);
     });
+  }
+
+  Future<void> _loadMyProfile() async {
+    final bool isPlaceholder = _currentMyName.isEmpty || 
+                               _currentMyName == 'Customer' || 
+                               _currentMyName == 'You' || 
+                               _currentMyName == 'unknown_user';
+    
+    if (!isPlaceholder && _currentMyImageUrl.isNotEmpty) return;
+
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection(widget.isDriver ? 'Drivers' : 'Passengers')
+          .doc(uid)
+          .get();
+
+      if (doc.exists && mounted) {
+        setState(() {
+          if (_currentMyName.isEmpty) {
+            _currentMyName = doc.data()?['name'] ?? 'You';
+          }
+          if (_currentMyImageUrl.isEmpty) {
+            _currentMyImageUrl = doc.data()?['profileImageUrl'] ?? '';
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading my profile: $e");
+    }
   }
 
   @override
@@ -61,9 +119,9 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
     await ChatService.sendMessage(
       rideId: widget.rideId,
       senderId: _myId,
-      senderName: _myName,
+      senderName: _currentMyName.isNotEmpty ? _currentMyName : (FirebaseAuth.instance.currentUser?.displayName ?? 'You'),
       text: text,
-      isDriver: false,
+      isDriver: widget.isDriver,
     );
     _scrollToBottom();
   }
@@ -134,6 +192,49 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
     );
   }
 
+  Widget _buildAvatar(double size, String imageUrl, String name, {bool isPeer = true}) {
+    Widget inner;
+    if (imageUrl.startsWith('data:image')) {
+      try {
+        final Uint8List bytes = base64Decode(imageUrl.split(',').last);
+        inner = Image.memory(bytes, fit: BoxFit.cover, width: size, height: size);
+      } catch (_) {
+        inner = _initialsAvatar(size, name, isPeer);
+      }
+    } else if (imageUrl.isNotEmpty) {
+      inner = Image.network(imageUrl,
+          fit: BoxFit.cover,
+          width: size,
+          height: size,
+          errorBuilder: (_, __, ___) => _initialsAvatar(size, name, isPeer));
+    } else {
+      inner = _initialsAvatar(size, name, isPeer);
+    }
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isPeer ? _kRed.withValues(alpha: 0.1) : const Color(0xFFEFF0F2),
+      ),
+      child: ClipOval(child: inner),
+    );
+  }
+
+  Widget _initialsAvatar(double size, String name, bool isPeer) {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: GoogleFonts.outfit(
+          fontSize: size * 0.45,
+          fontWeight: FontWeight.bold,
+          color: isPeer ? _kRed : const Color(0xFF64748B),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAppBar(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
@@ -158,21 +259,13 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
             onPressed: () => Navigator.pop(context),
             color: const Color(0xFF0F172A),
           ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _kRed.withValues(alpha: 0.1),
-            ),
-            child: const Icon(Icons.person_rounded, color: _kRed, size: 22),
-          ),
+          _buildAvatar(40, widget.peerImageUrl, widget.peerName),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.driverName,
+                Text(widget.peerName,
                     style: GoogleFonts.outfit(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
@@ -186,7 +279,7 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
                             color: Colors.green,
                             shape: BoxShape.circle)),
                     const SizedBox(width: 4),
-                    Text('Active · On the way',
+                    Text(widget.isDriver ? 'Active · Waiting for you' : 'Active · On the way',
                         style: GoogleFonts.outfit(
                             fontSize: 12, color: Colors.grey[500])),
                   ],
@@ -221,7 +314,7 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
                   fontSize: 16,
                   color: const Color(0xFF0F172A))),
           const SizedBox(height: 6),
-          Text('Chat with your driver about pickup details',
+          Text('Chat with your ${widget.isDriver ? 'passenger' : 'driver'} about pickup details',
               style:
                   GoogleFonts.outfit(fontSize: 13, color: Colors.grey[500])),
         ],
@@ -243,16 +336,7 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: _kRed.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child:
-                  const Icon(Icons.person_rounded, color: _kRed, size: 16),
-            ),
+            _buildAvatar(30, widget.peerImageUrl, widget.peerName),
             const SizedBox(width: 8),
           ],
           Column(
@@ -298,12 +382,7 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
           ),
           if (isUser) ...[
             const SizedBox(width: 8),
-            const CircleAvatar(
-              radius: 15,
-              backgroundColor: Color(0xFFEFF0F2),
-              child: Icon(Icons.person_rounded,
-                  color: Color(0xFF64748B), size: 16),
-            ),
+            _buildAvatar(30, _currentMyImageUrl, _currentMyName, isPeer: false),
           ],
         ],
       ),
@@ -367,7 +446,7 @@ class _PassengerChatScreenState extends State<PassengerChatScreen> {
                 style: GoogleFonts.outfit(
                     fontSize: 14, color: const Color(0xFF0F172A)),
                 decoration: InputDecoration(
-                  hintText: 'Message your driver…',
+                  hintText: 'Message your ${widget.isDriver ? 'passenger' : 'driver'}…',
                   hintStyle: GoogleFonts.outfit(
                       fontSize: 14, color: Colors.grey[400]),
                   border: InputBorder.none,

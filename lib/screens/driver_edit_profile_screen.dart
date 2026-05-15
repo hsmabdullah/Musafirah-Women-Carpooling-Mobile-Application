@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:musafirah_app/services/database_service.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 
 const _kRed = Color(0xFFFC153B);
 const _kRedDark = Color(0xFFD4002A);
@@ -26,11 +29,21 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
   late TextEditingController _emailController;
   late TextEditingController _emergencyController;
   late TextEditingController _cityController;
+  late TextEditingController _jazzCashController;
+  late TextEditingController _easyPaisaController;
   bool _isSaving = false;
+  
+  late String _currentImageUrl;
+  File? _newImageFile;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
     super.initState();
+    _currentImageUrl = widget.driverData['profileImageUrl']?.toString().isNotEmpty == true 
+        ? widget.driverData['profileImageUrl'] 
+        : widget.driverData['selfieUrl'] ?? '';
+        
     _nameController =
         TextEditingController(text: widget.driverData['name'] ?? '');
     _emailController =
@@ -39,6 +52,10 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
         TextEditingController(text: widget.driverData['emergencyContact'] ?? '');
     _cityController =
         TextEditingController(text: widget.driverData['city'] ?? '');
+    _jazzCashController =
+        TextEditingController(text: widget.driverData['jazzCashNumber'] ?? '');
+    _easyPaisaController =
+        TextEditingController(text: widget.driverData['easyPaisaNumber'] ?? '');
   }
 
   @override
@@ -47,6 +64,8 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
     _emailController.dispose();
     _emergencyController.dispose();
     _cityController.dispose();
+    _jazzCashController.dispose();
+    _easyPaisaController.dispose();
     super.dispose();
   }
 
@@ -63,6 +82,8 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
         'email': _emailController.text.trim(),
         'emergencyContact': _emergencyController.text.trim(),
         'city': _cityController.text.trim(),
+        'jazzCashNumber': _jazzCashController.text.trim(),
+        'easyPaisaNumber': _easyPaisaController.text.trim(),
       },
     );
     if (!mounted) return;
@@ -155,6 +176,22 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 28),
+                    _buildSectionLabel('Payment Information (Online)'),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _jazzCashController,
+                      label: 'JazzCash Number',
+                      icon: Icons.account_balance_wallet_outlined,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 14),
+                    _buildField(
+                      controller: _easyPaisaController,
+                      label: 'EasyPaisa Number',
+                      icon: Icons.account_balance_wallet_outlined,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 28),
                     _buildSectionLabel('Vehicle Information'),
                     const SizedBox(height: 12),
                     _buildVehicleInfo(),
@@ -204,8 +241,58 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
     );
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (pickedFile == null) return;
+
+    setState(() {
+      _newImageFile = File(pickedFile.path);
+      _isUploadingImage = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Bypass Firebase Storage issues by encoding to Base64
+      final downloadUrl = await AuthService.compressAndEncodeImage(_newImageFile!);
+
+      if (downloadUrl == null || downloadUrl.isEmpty) {
+        throw 'Failed to get image data';
+      }
+
+      // Update Firestore immediately
+      await DatabaseService.updateDriverFields(
+        uid: user.uid,
+        fields: {'profileImageUrl': downloadUrl},
+      );
+
+      setState(() {
+        _currentImageUrl = downloadUrl;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Profile picture updated!', style: GoogleFonts.outfit()),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload: $e', style: GoogleFonts.outfit()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+
   Widget _buildAvatarSection() {
-    final imageUrl = widget.driverData['profileImageUrl'] ?? '';
     return Center(
       child: Stack(
         children: [
@@ -218,27 +305,38 @@ class _DriverEditProfileScreenState extends State<DriverEditProfileScreen> {
               color: Colors.grey[200],
             ),
             child: ClipOval(
-              child: imageUrl.isNotEmpty
-                  ? Image.network(imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                          Icons.person, size: 44, color: _kSubText))
-                  : const Icon(Icons.person, size: 44, color: _kSubText),
+              child: _newImageFile != null
+                  ? Image.file(_newImageFile!, fit: BoxFit.cover)
+                  : _currentImageUrl.isNotEmpty
+                      ? Image(
+                          image: AuthService.getImageProvider(_currentImageUrl),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.person, size: 44, color: _kSubText))
+                      : const Icon(Icons.person, size: 44, color: _kSubText),
             ),
           ),
           Positioned(
             bottom: 0,
             right: 0,
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: _kRed,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+            child: GestureDetector(
+              onTap: _isUploadingImage ? null : _pickAndUploadImage,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _kRed,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: _isUploadingImage
+                    ? const Padding(
+                        padding: EdgeInsets.all(6),
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.camera_alt_outlined,
+                        color: Colors.white, size: 14),
               ),
-              child: const Icon(Icons.camera_alt_outlined,
-                  color: Colors.white, size: 14),
             ),
           ),
         ],
