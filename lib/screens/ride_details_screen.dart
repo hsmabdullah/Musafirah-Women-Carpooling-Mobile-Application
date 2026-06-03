@@ -190,26 +190,59 @@ class RideDetailsScreen extends StatelessWidget {
               FutureBuilder<DocumentSnapshot>(
                 future: FirebaseFirestore.instance.collection('Drivers').doc(rideData['driverId']).get(),
                 builder: (context, snapshot) {
-                  // Fallback to rideData if fetch fails or is still loading
-                  String name = rideData['driverName'] as String? ?? 'Driver';
-                  String phone = rideData['driverPhone'] as String? ?? '';
-                  String vehicle = rideData['vehicleModel'] as String? ?? '-';
-                  String plate = rideData['vehiclePlate'] as String? ?? '-';
-                  String imgUrl = rideData['driverImageUrl'] as String? ?? '';
+                  // Helper: pick the first non-empty, non-dash value
+                  String pick(List<String?> candidates, String fallback) {
+                    for (final c in candidates) {
+                      if (c != null && c.isNotEmpty && c != '-' && c != '—' && c != 'N/A') {
+                        return c;
+                      }
+                    }
+                    return fallback;
+                  }
+
+                  // Start with rideData (inline fields written by acceptRideByDriver)
+                  String rdName = rideData['driverName'] as String? ?? '';
+                  String rdPhone = rideData['driverPhone'] as String? ?? '';
+                  String rdVehicle = rideData['vehicleModel'] as String? ?? '';
+                  String rdColor = rideData['vehicleColor'] as String? ?? '';
+                  String rdPlate = rideData['vehiclePlate'] as String? ?? '';
+                  String rdImg = rideData['driverImageUrl'] as String? ?? '';
+
+                  // Also check alternate field names in rideData
+                  String rdPlateAlt = rideData['vehicleRegistration'] as String? ?? '';
+
+                  // If Firestore Drivers doc loaded, overlay with those values
+                  String dbName = '';
+                  String dbPhone = '';
+                  String dbVehicle = '';
+                  String dbColor = '';
+                  String dbPlate = '';
+                  String dbImg = '';
 
                   if (snapshot.hasData && snapshot.data!.exists) {
                     final d = snapshot.data!.data() as Map<String, dynamic>;
-                    name = d['name'] ?? name;
-                    phone = d['phone'] ?? phone;
-                    vehicle = d['vehicleModel'] ?? vehicle;
-                    plate = d['vehicleRegistration'] ?? plate; // it's vehicleRegistration in Drivers collection
-                    imgUrl = d['profileImageUrl'] ?? imgUrl;
+                    dbName = d['name'] as String? ?? '';
+                    dbPhone = d['phone'] as String? ?? '';
+                    dbVehicle = d['vehicleModel'] as String? ?? '';
+                    dbColor = d['vehicleColor'] as String? ?? '';
+                    dbPlate = d['vehicleRegistration'] as String? ?? '';
+                    dbImg = (d['profileImageUrl'] as String?)?.isNotEmpty == true
+                        ? d['profileImageUrl'] as String
+                        : (d['image_selfie'] as String? ?? '');
                   }
 
-                  // If still exactly "-" or empty, try to show something nicer
-                  if (name.isEmpty) name = 'Driver';
-                  if (vehicle.isEmpty) vehicle = 'Unknown Vehicle';
-                  if (plate.isEmpty) plate = 'N/A';
+                  // Resolve final values: prefer Drivers collection, fallback to ride doc
+                  final name = pick([dbName, rdName], 'Driver');
+                  final phone = pick([dbPhone, rdPhone], '');
+                  final vehicle = pick([dbVehicle, rdVehicle], '');
+                  final color = pick([dbColor, rdColor], '');
+                  final plate = pick([dbPlate, rdPlateAlt, rdPlate], '');
+                  final imgUrl = pick([dbImg, rdImg], '');
+
+                  // Build vehicle display string (include color if available)
+                  final vehicleDisplay = vehicle.isNotEmpty
+                      ? (color.isNotEmpty ? '$vehicle ($color)' : vehicle)
+                      : '';
 
                   return Container(
                     color: Colors.white,
@@ -253,12 +286,18 @@ class RideDetailsScreen extends StatelessWidget {
                                   if (phone.isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        phone,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                        ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.phone_outlined, size: 14, color: Colors.grey[500]),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            phone,
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                 ],
@@ -266,7 +305,7 @@ class RideDetailsScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        if (vehicle != 'Unknown Vehicle' || plate != 'N/A') ...[
+                        if (vehicleDisplay.isNotEmpty || plate.isNotEmpty) ...[
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 16),
                             child: Divider(height: 1),
@@ -274,56 +313,60 @@ class RideDetailsScreen extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Vehicle',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 12,
-                                      color: Colors.grey[500],
-                                    ),
+                              if (vehicleDisplay.isNotEmpty)
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Vehicle',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 12,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        vehicleDisplay,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    vehicle,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                      color: const Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    'License Plate',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 12,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.yellow[700],
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: Colors.black12),
-                                    ),
-                                    child: Text(
-                                      plate,
+                                ),
+                              if (plate.isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      'License Plate',
                                       style: GoogleFonts.outfit(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.black87,
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.yellow[700],
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.black12),
+                                      ),
+                                      child: Text(
+                                        plate,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         ],

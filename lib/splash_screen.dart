@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'user_choice.dart';
+import 'package:musafirah_app/driver_dashboard_screen.dart';
+import 'package:musafirah_app/passenger_dashboard_screen.dart';
+import 'package:musafirah_app/services/auth_service.dart';
+import 'package:musafirah_app/services/database_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,11 +17,44 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 3), () {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const UserChoice()));
-    });
+    _navigateToNext();
+  }
+
+  Future<void> _navigateToNext() async {
+    final startTime = DateTime.now();
+    Widget nextScreen = const UserChoice();
+
+    try {
+      final user = AuthService.currentUser;
+      if (user != null) {
+        final uid = user.uid;
+        final lastRole = await AuthService.getLastUsedRole();
+        String? role = await DatabaseService.getUserRole(
+          uid,
+          expectedRole: lastRole,
+        );
+        role ??= lastRole ?? 'passenger';
+
+        nextScreen = role == 'driver'
+            ? const DriverDashboardScreen()
+            : const PassengerDashboardScreen();
+      }
+    } catch (e) {
+      debugPrint('SplashScreen: auto-login check failed: $e');
+    }
+
+    final elapsed = DateTime.now().difference(startTime);
+    final remainingDelay = const Duration(seconds: 3) - elapsed;
+
+    if (remainingDelay > Duration.zero) {
+      await Future.delayed(remainingDelay);
+    }
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => nextScreen),
+      );
+    }
   }
 
   @override

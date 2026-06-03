@@ -148,6 +148,13 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
       try {
         if (ride.rideId != null) {
           final driver = FirebaseAuth.instance.currentUser;
+          // Ensure driver profile is loaded before accepting
+          if (_driverProfile == null && driver != null) {
+            final data = await DatabaseService.getUserData(driver.uid, 'Drivers');
+            if (mounted && data != null) {
+              setState(() => _driverProfile = data);
+            }
+          }
           final profile = _driverProfile;
           acceptError = await DatabaseService.acceptRideByDriver(
             rideId: ride.rideId!,
