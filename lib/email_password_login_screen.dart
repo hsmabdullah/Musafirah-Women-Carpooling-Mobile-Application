@@ -204,6 +204,73 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
     );
   }
 
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.outfit(color: Colors.white)),
+        backgroundColor: Colors.black87,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+    );
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final TextEditingController emailController = TextEditingController(text: _emailController.text);
+    return showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Reset Password', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: emailController,
+          decoration: InputDecoration(
+            hintText: 'Enter your email',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = emailController.text.trim();
+              if (email.isNotEmpty) {
+                try {
+                  await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                  if (mounted) {
+                    _showSnack('Password reset email sent');
+                  }
+                } catch (e) {
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                  if (mounted) {
+                    _showSnack('Error: $e');
+                  }
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFC153b),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Send Link', style: GoogleFonts.outfit(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -326,7 +393,7 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                         children: [
                           Text(
                             roleLabel != null
-                                ? 'Welcome Aboard, $roleLabel!'
+                                ? 'Welcome Aboard, $roleLabel'
                                 : 'Welcome Back!',
                             style: GoogleFonts.outfit(
                               fontSize: 26,
@@ -402,9 +469,7 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {
-                                // TODO: forgot password flow
-                              },
+                              onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 4),

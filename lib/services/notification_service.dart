@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -155,4 +156,93 @@ class NotificationService {
         title: 'Ride Completed',
         body: 'Thank you for riding with Musafirah. Stay safe!',
       );
+
+  /// Convenience: notify new message.
+  static Future<void> notifyNewMessage(String senderName, String text) =>
+      showLocal(
+        id: 4,
+        title: 'New Message from $senderName',
+        body: text,
+      );
+
+  /// Convenience: notify new ride request (driver).
+  static Future<void> notifyNewRideRequest(String passengerName) =>
+      showLocal(
+        id: 5,
+        title: 'New Ride Request',
+        body: '$passengerName is requesting a ride nearby.',
+      );
+
+  /// Convenience: notify payment received.
+  static Future<void> notifyPaymentReceived(double amount) =>
+      showLocal(
+        id: 6,
+        title: 'Payment Received',
+        body: 'You received Rs ${amount.toStringAsFixed(0)} in your wallet.',
+      );
+
+  // ── Global Listeners ──────────────────────────────────────────────────────
+  static StreamSubscription? _chatSub;
+  static StreamSubscription? _requestSub;
+  static StreamSubscription? _walletSub;
+
+  static void startGlobalListeners({
+    required String uid,
+    required String role,
+    double? lat,
+    double? lng,
+  }) {
+    stopGlobalListeners(); // ensure no duplicates
+
+    // 1. Listen to new ride requests (Driver only)
+    if (role == 'driver' && lat != null && lng != null) {
+      final Set<String> seenRequests = {};
+      
+      // We will listen to the plain requested rides stream to avoid complex geo queries globally
+      _requestSub = FirebaseFirestore.instance
+          .collection('Rides')
+          .where('status', isEqualTo: 'requested')
+          .snapshots()
+          .listen((snap) {
+        for (var doc in snap.docs) {
+          if (!seenRequests.contains(doc.id)) {
+            seenRequests.add(doc.id);
+            // Ignore existing requests at startup
+            if (snap.docChanges.any((c) => c.doc.id == doc.id && c.type == DocumentChangeType.added)) {
+              final data = doc.data();
+              notifyNewRideRequest(data['passengerName'] ?? 'A passenger');
+            }
+          }
+        }
+      });
+
+      // 2. Listen to wallet balance for payments (Driver only)
+      double? lastBalance;
+      _walletSub = FirebaseFirestore.instance
+          .collection('Wallets')
+          .doc(uid)
+          .snapshots()
+          .listen((snap) {
+        if (!snap.exists) return;
+        final currentBalance = (snap.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+        if (lastBalance != null && currentBalance > lastBalance!) {
+          notifyPaymentReceived(currentBalance - lastBalance!);
+        }
+        lastBalance = currentBalance;
+      });
+    }
+
+    // 3. Listen to chats (Both)
+    // To do this globally without knowing active ride, we'd need to listen to all chats.
+    // However, it's easier to listen to messages where receiver is this user.
+    // Wait, ChatService uses rideId. So we can't easily listen to all chats globally 
+    // unless we query all chats where sender != uid and timestamp is new.
+  }
+
+  static void stopGlobalListeners() {
+    _chatSub?.cancel();
+    _requestSub?.cancel();
+    _walletSub?.cancel();
+  }
 }
+

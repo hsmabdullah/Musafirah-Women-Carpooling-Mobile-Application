@@ -25,6 +25,9 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'live_chat_screen.dart';
 import 'payment_screen.dart';
 import 'services/emergency_contact_service.dart';
+import 'package:musafirah_app/services/chat_service.dart';
+import 'package:musafirah_app/services/notification_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 const String _emergencyNumber = '112';
 const double _averageSpeedKmh = 28.0;
@@ -76,6 +79,7 @@ class _PassengerLiveTrackingScreenState
   StreamSubscription? _driverLocationSub;
   StreamSubscription? _driverProfileSub;
   StreamSubscription? _rideSub;
+  StreamSubscription? _chatSub;
   Timer? _passengerRefreshTimer;
   Timer? _debugTimer;
 
@@ -126,6 +130,7 @@ class _PassengerLiveTrackingScreenState
     _driverLocationSub?.cancel();
     _driverProfileSub?.cancel();
     _rideSub?.cancel();
+    _chatSub?.cancel();
     _passengerRefreshTimer?.cancel();
     _debugTimer?.cancel();
     super.dispose();
@@ -199,6 +204,27 @@ class _PassengerLiveTrackingScreenState
       } else if (status == 'cancelled') {
         _showSnack('Ride has been cancelled.');
         Navigator.pop(context);
+      }
+    });
+
+    // 4. Chat Messages Notification Stream
+    bool isFirstMessageLoad = true;
+    _chatSub = ChatService.messagesStream(widget.rideId).listen((snap) {
+      if (!mounted) return;
+      if (isFirstMessageLoad) {
+        isFirstMessageLoad = false;
+        return;
+      }
+      for (var change in snap.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data();
+          if (data != null && data['senderId'] != FirebaseAuth.instance.currentUser?.uid) {
+            NotificationService.notifyNewMessage(
+              widget.driverName,
+              data['text'] ?? 'Sent an image or file',
+            );
+          }
+        }
       }
     });
   }

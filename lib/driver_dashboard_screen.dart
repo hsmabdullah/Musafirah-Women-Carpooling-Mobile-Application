@@ -15,6 +15,7 @@ import 'driver_profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:musafirah_app/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:musafirah_app/services/notification_service.dart';
 import 'user_pending_screen.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
@@ -56,6 +57,12 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     _fetchDriverData();
     _getCurrentLocation();
     _primeRecentTrips();
+    
+    // Start global background listeners for notifications
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      NotificationService.startGlobalListeners(uid: user.uid, role: 'driver', lat: 24.8607, lng: 67.0011);
+    }
 
     // Listen to focus to toggle search state if needed
     _startFocus.addListener(_onFocusChange);

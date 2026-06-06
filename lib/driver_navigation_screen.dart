@@ -7,6 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'live_chat_screen.dart';
 import 'driver_payment_screen.dart';
 import 'package:musafirah_app/driver_data.dart';
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:musafirah_app/services/chat_service.dart';
+import 'package:musafirah_app/services/notification_service.dart';
 
 const _kRed = Color(0xFFFC153B);
 const _kText = Color(0xFF0F172A);
@@ -49,6 +54,7 @@ class DriverNavigationScreen extends StatefulWidget {
 
 class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   final MapController _mapController = MapController();
+  StreamSubscription? _chatSub;
   int _activeStep = 0;
 
   final List<Map<String, dynamic>> _instructions = [
@@ -95,6 +101,32 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         ),
       );
     });
+
+    bool isFirstLoad = true;
+    _chatSub = ChatService.messagesStream(widget.rideId).listen((snap) {
+      if (!mounted) return;
+      if (isFirstLoad) {
+        isFirstLoad = false;
+        return;
+      }
+      for (var change in snap.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data();
+          if (data != null && data['senderId'] != FirebaseAuth.instance.currentUser?.uid) {
+            NotificationService.notifyNewMessage(
+              widget.passengerName,
+              data['text'] ?? 'Sent an image or file',
+            );
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _callNumber(String number) async {
