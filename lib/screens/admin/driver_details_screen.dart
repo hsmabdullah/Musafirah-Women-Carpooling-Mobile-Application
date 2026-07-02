@@ -100,6 +100,7 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
           .update({
         'isBlocked': !currentlyBlocked,
         'updatedAt': FieldValue.serverTimestamp(),
+        'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -119,6 +120,59 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to permanently delete this account? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final error = await DatabaseService.deleteUserDoc(
+      uid: widget.driverUid,
+      collection: 'Drivers',
+    );
+    if (error != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $error'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Account deleted successfully.'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      Navigator.pop(context);
     }
   }
 
@@ -453,41 +507,45 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
 
                       // Action Buttons
                       if (!_isBlocked) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => _updateStatus('approved'),
-                                icon: const Icon(Icons.check_circle_outline, size: 18),
-                                label: const Text('Approve',
-                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
+                        if (_currentStatus != 'approved' || _currentStatus == 'rejected')
+                          Row(
+                            children: [
+                              if (_currentStatus != 'approved')
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _updateStatus('approved'),
+                                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                                    label: const Text('Approve',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _updateStatus('rejected'),
-                                icon: const Icon(Icons.cancel_outlined, size: 18),
-                                label: const Text('Reject',
-                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.red,
-                                  side: const BorderSide(color: Colors.red, width: 1.5),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
+                              if (_currentStatus != 'approved' && _currentStatus != 'rejected')
+                                const SizedBox(width: 10),
+                              if (_currentStatus != 'rejected')
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _updateStatus('rejected'),
+                                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                                    label: const Text('Reject',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red, width: 1.5),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                         const SizedBox(height: 10),
                       ],
 
@@ -513,6 +571,29 @@ class _DriverDetailsScreenState extends State<DriverDetailsScreen> {
                           ),
                         ),
                       ),
+                      
+                      // Delete Account (only if rejected or blocked)
+                      if (_currentStatus == 'rejected' || _isBlocked) ...[
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _deleteAccount,
+                            icon: const Icon(Icons.delete_forever, size: 18),
+                            label: const Text(
+                              'Delete Account',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 28),
                     ],
                   ),

@@ -197,6 +197,7 @@ class NotificationService {
     // 1. Listen to new ride requests (Driver only)
     if (role == 'driver' && lat != null && lng != null) {
       final Set<String> seenRequests = {};
+      bool isFirstSnapshot = true;
       
       // We will listen to the plain requested rides stream to avoid complex geo queries globally
       _requestSub = FirebaseFirestore.instance
@@ -204,13 +205,23 @@ class NotificationService {
           .where('status', isEqualTo: 'requested')
           .snapshots()
           .listen((snap) {
-        for (var doc in snap.docs) {
-          if (!seenRequests.contains(doc.id)) {
+        if (isFirstSnapshot) {
+          isFirstSnapshot = false;
+          for (var doc in snap.docs) {
             seenRequests.add(doc.id);
-            // Ignore existing requests at startup
-            if (snap.docChanges.any((c) => c.doc.id == doc.id && c.type == DocumentChangeType.added)) {
+          }
+          return;
+        }
+
+        for (var change in snap.docChanges) {
+          if (change.type == DocumentChangeType.added) {
+            final doc = change.doc;
+            if (!seenRequests.contains(doc.id)) {
+              seenRequests.add(doc.id);
               final data = doc.data();
-              notifyNewRideRequest(data['passengerName'] ?? 'A passenger');
+              if (data != null) {
+                notifyNewRideRequest(data['passengerName'] ?? 'A passenger');
+              }
             }
           }
         }

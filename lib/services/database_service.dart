@@ -699,8 +699,25 @@ class DatabaseService {
         'status': status,
         'isVerified': status == 'approved',
         'updatedAt': FieldValue.serverTimestamp(),
+        'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
       debugPrint('DB: Status updated for $uid to $status');
+      return null;
+    } on FirebaseException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Deletes a user document from a specific collection (Admin action)
+  static Future<String?> deleteUserDoc({
+    required String uid,
+    required String collection,
+  }) async {
+    try {
+      await _db.collection(collection).doc(uid).delete();
+      debugPrint('DB: User document $uid deleted from $collection');
       return null;
     } on FirebaseException catch (e) {
       return e.message;

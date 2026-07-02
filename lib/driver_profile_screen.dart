@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:musafirah_app/services/database_service.dart';
+import 'package:musafirah_app/services/auth_service.dart';
 import 'package:musafirah_app/screens/driver_edit_profile_screen.dart';
 import 'package:musafirah_app/screens/support_screen.dart';
 import 'package:musafirah_app/screens/privacy_security_screen.dart';
@@ -272,8 +273,12 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       ),
       child: ClipOval(
         child: url.isNotEmpty
-            ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
-                const Icon(Icons.person, size: 40, color: Colors.white))
+            ? Image(
+                image: AuthService.getImageProvider(url),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.person, size: 40, color: Colors.white),
+              )
             : const Icon(Icons.person, size: 40, color: Colors.white),
       ),
     );

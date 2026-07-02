@@ -899,11 +899,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                             )
                           else
                             ..._recentTrips.map((trip) {
-                              final label =
-                                  "${trip.pickupLabel} \u2192 ${trip.dropoffLabel}";
-                              return _buildLocationItem(
-                                title: label,
-                                subtitle: "Last trip • ${trip.pickupLabel}",
+                              return _buildRecentTripItem(
+                                pickup: trip.pickupLabel,
+                                dropoff: trip.dropoffLabel,
                                 onTap: () {
                                   setState(() {
                                     _pickupLocation = trip.pickup;
@@ -916,7 +914,6 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                                   });
                                   _syncRoute();
                                 },
-                                isRecent: true,
                               );
                             }),
                           const SizedBox(height: 20),
@@ -996,6 +993,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         ),
         title: Text(
           title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
@@ -1005,6 +1004,104 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
           style: GoogleFonts.outfit(color: Colors.grey[500], fontSize: 12),
         ),
         onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildRecentTripItem({
+    required String pickup,
+    required String dropoff,
+    required VoidCallback onTap,
+  }) {
+    // Extract short name: first meaningful part before the first comma
+    String short(String full) {
+      final parts = full.split(',');
+      return parts.isNotEmpty ? parts[0].trim() : full;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Left: icon column
+            Column(
+              children: [
+                const Icon(Icons.circle, size: 10, color: Color(0xFFFC153B)),
+                Container(
+                  width: 1.5,
+                  height: 26,
+                  color: Colors.grey.shade300,
+                ),
+                const Icon(Icons.square, size: 10, color: Colors.black87),
+              ],
+            ),
+            const SizedBox(width: 12),
+            // Right: pickup + destination
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Pickup
+                  Text(
+                    'Pickup',
+                    style: GoogleFonts.outfit(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    short(pickup),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Destination
+                  Text(
+                    'Destination',
+                    style: GoogleFonts.outfit(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    short(dropoff),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+          ],
+        ),
       ),
     );
   }

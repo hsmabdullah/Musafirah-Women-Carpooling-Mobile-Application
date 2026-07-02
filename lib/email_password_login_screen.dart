@@ -85,13 +85,22 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
 
           // Check if they exist in the OTHER collection to give a better error.
           final otherRole = widget.role == 'passenger' ? 'driver' : 'passenger';
-          final otherRoleExists = await DatabaseService.getUserRole(uid, expectedRole: otherRole);
+          final otherRoleExists = await DatabaseService.getUserRole(
+            uid,
+            expectedRole: otherRole,
+          );
 
           if (!mounted) return;
 
           if (otherRoleExists != null) {
-            // They signed up as the other role — show mismatch dialog.
-            _showRoleMismatchDialog(uid, otherRoleExists, widget.role!);
+            // They signed up as the other role — show error instead of switching.
+            final actualRoleStr = otherRoleExists == 'driver'
+                ? 'Driver'
+                : 'Passenger';
+            final expectedRoleStr = widget.role == 'driver'
+                ? 'Driver'
+                : 'Passenger';
+            _showRoleMismatchPopup(expectedRoleStr, actualRoleStr);
           } else {
             // Account exists in Firebase Auth but not in Firestore at all.
             _showError('Account not found. Please sign up first.');
@@ -103,7 +112,13 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
         if (widget.role != null && firestoreRole != widget.role) {
           await FirebaseAuth.instance.signOut();
           if (!mounted) return;
-          _showRoleMismatchDialog(uid, firestoreRole ?? 'unknown', widget.role!);
+          final actualRoleStr = firestoreRole == 'driver'
+              ? 'Driver'
+              : 'Passenger';
+          final expectedRoleStr = widget.role == 'driver'
+              ? 'Driver'
+              : 'Passenger';
+          _showRoleMismatchPopup(expectedRoleStr, actualRoleStr);
           return;
         }
 
@@ -139,59 +154,6 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
     }
   }
 
-  void _showRoleMismatchDialog(String uid, String currentRole, String targetRole) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Role Conflict Detected', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text(
-          'Your account is currently registered as a ${currentRole == 'driver' ? 'Driver' : 'Passenger'}. '
-          'Would you like to switch it to a ${targetRole == 'driver' ? 'Driver' : 'Passenger'} account?',
-          style: GoogleFonts.outfit(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              setState(() => _isLoading = true);
-              
-              final success = await DatabaseService.moveUserToCollection(
-                uid: uid,
-                fromCollection: currentRole == 'driver' ? 'Drivers' : 'Passengers',
-                toCollection: targetRole == 'driver' ? 'Drivers' : 'Passengers',
-                newRole: targetRole,
-              );
-              
-              if (!context.mounted) {
-                return;
-              }
-              setState(() => _isLoading = false);
-              if (success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Account successfully switched! Please log in again.', style: GoogleFonts.outfit()),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } else {
-                _showError('Failed to switch account. Please contact support.');
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFC153b),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text('Switch Role', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -200,6 +162,44 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+    );
+  }
+
+  void _showRoleMismatchPopup(String expectedRole, String actualRole) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              'Invalid Role',
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'You are trying to log in as a $expectedRole, but this email is registered as a $actualRole. Please use the correct login section.',
+          style: GoogleFonts.outfit(fontSize: 15),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFC153b),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text('OK', style: GoogleFonts.outfit(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -218,32 +218,45 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
   }
 
   Future<void> _showForgotPasswordDialog() async {
-    final TextEditingController emailController = TextEditingController(text: _emailController.text);
+    final TextEditingController emailController = TextEditingController(
+      text: _emailController.text,
+    );
     return showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Reset Password', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Reset Password',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
         content: TextField(
           controller: emailController,
           decoration: InputDecoration(
             hintText: 'Enter your email',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
           keyboardType: TextInputType.emailAddress,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.outfit(color: Colors.grey),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
               final email = emailController.text.trim();
               if (email.isNotEmpty) {
                 try {
-                  await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                  await FirebaseAuth.instance.sendPasswordResetEmail(
+                    email: email,
+                  );
                   if (dialogContext.mounted) {
                     Navigator.pop(dialogContext);
                   }
@@ -262,9 +275,14 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFC153b),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: Text('Send Link', style: GoogleFonts.outfit(color: Colors.white)),
+            child: Text(
+              'Send Link',
+              style: GoogleFonts.outfit(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -279,13 +297,13 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
     final roleLabel = isDriver
         ? 'Driver'
         : isPassenger
-            ? 'Passenger'
-            : null;
+        ? 'Passenger'
+        : null;
     final roleIcon = isDriver
         ? Icons.drive_eta_rounded
         : isPassenger
-            ? Icons.person_rounded
-            : null;
+        ? Icons.person_rounded
+        : null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFC153b),
@@ -312,7 +330,9 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                         if (roleLabel != null)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20),
@@ -324,8 +344,7 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(roleIcon,
-                                    color: Colors.white, size: 15),
+                                Icon(roleIcon, color: Colors.white, size: 15),
                                 const SizedBox(width: 6),
                                 Text(
                                   '$roleLabel Login',
@@ -453,7 +472,8 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                                       color: Colors.grey[500],
                                     ),
                                     onPressed: () => setState(
-                                      () => _obscurePassword = !_obscurePassword,
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
                                     ),
                                   ),
                                 ),
@@ -471,8 +491,9 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                             child: TextButton(
                               onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
                               ),
                               child: Text(
                                 'Forgot password?',
@@ -496,8 +517,9 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                                 backgroundColor: const Color(0xFFFC153b),
                                 foregroundColor: Colors.white,
                                 elevation: 4,
-                                shadowColor: const Color(0xFFFC153b)
-                                    .withValues(alpha: 0.35),
+                                shadowColor: const Color(
+                                  0xFFFC153b,
+                                ).withValues(alpha: 0.35),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -535,7 +557,8 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12),
+                                  horizontal: 12,
+                                ),
                                 child: Text(
                                   'or',
                                   style: GoogleFonts.outfit(
@@ -614,8 +637,7 @@ class _EmailPasswordLoginScreenState extends State<EmailPasswordLoginScreen>
       prefixIcon: Icon(icon, color: const Color(0xFFFC153b), size: 20),
       filled: true,
       fillColor: const Color(0xFFF8F8F8),
-      contentPadding:
-          const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: Colors.grey[200]!),

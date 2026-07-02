@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'rider_verification_screen.dart';
 import 'widgets/bottom_nav.dart';
 import 'package:musafirah_app/services/auth_service.dart';
@@ -286,11 +287,22 @@ class _RidersListScreenState extends State<RidersListScreen>
                                                   Icon(Icons.phone_iphone_rounded, size: 12, color: Colors.grey.shade400),
                                                   const SizedBox(width: 4),
                                                   Expanded(
-                                                    child: Text(
-                                                      rider['phone'] ?? rider['phoneNo'] ?? 'No phone',
-                                                      style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          rider['phone'] ?? rider['phoneNo'] ?? 'No phone',
+                                                          style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                        if (rider['statusUpdatedAt'] != null && (displayStatus == 'rejected' || displayStatus == 'blocked' || displayStatus == 'approved'))
+                                                          Text(
+                                                            '${displayStatus == 'approved' ? 'Approved on:' : 'Since:'} ${DateFormat('MMM d, yyyy h:mm a').format((rider['statusUpdatedAt'] as Timestamp).toDate())}',
+                                                            style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey.shade500),
+                                                            maxLines: 1,
+                                                          ),
+                                                      ],
                                                     ),
                                                   ),
                                                 ],

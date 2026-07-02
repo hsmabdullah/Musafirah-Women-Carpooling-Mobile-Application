@@ -1,17 +1,20 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persists and retrieves the passenger's recently used destinations.
+/// Persists and retrieves the passenger's recently used trips (pickup + destination).
 /// Stores up to [maxEntries] entries, most-recent first.
 class RecentDestinationsService {
   static const _key = 'musafirah_recent_destinations';
   static const maxEntries = 5;
 
-  /// Save a destination. Duplicates (by address) are removed before inserting.
+  /// Save a trip (pickup + destination). Duplicates (by destination address) are removed before inserting.
   static Future<void> save({
     required String address,
     required double lat,
     required double lng,
+    String pickupAddress = '',
+    double pickupLat = 0.0,
+    double pickupLng = 0.0,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final list = _load(prefs);
@@ -20,7 +23,14 @@ class RecentDestinationsService {
     list.removeWhere((e) => e['address'] == address);
 
     // Prepend
-    list.insert(0, {'address': address, 'lat': lat, 'lng': lng});
+    list.insert(0, {
+      'address': address,
+      'lat': lat,
+      'lng': lng,
+      'pickupAddress': pickupAddress,
+      'pickupLat': pickupLat,
+      'pickupLng': pickupLng,
+    });
 
     // Trim
     if (list.length > maxEntries) list.removeRange(maxEntries, list.length);
@@ -28,7 +38,7 @@ class RecentDestinationsService {
     await prefs.setString(_key, jsonEncode(list));
   }
 
-  /// Returns list of recent destinations, most-recent first.
+  /// Returns list of recent trips, most-recent first.
   static Future<List<Map<String, dynamic>>> getAll() async {
     final prefs = await SharedPreferences.getInstance();
     return _load(prefs);

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Musafirah Panaflex</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FC153B;
+            --primary-dark: #D4002A;
+            --bg-color: #f8f9fa;
+            --text-dark: #0f172a;
+            --text-light: #64748b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: #e2e8f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .poster {
+            width: 1200px; /* Poster Width */
+            height: 1800px; /* Poster Height */
+            background: #ffffff;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header Area */
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 4rem 3rem;
+            position: relative;
+            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://www.transparenttextures.com/patterns/cubes.png');
+            opacity: 0.1;
+            pointer-events: none;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .logo-container {
+            background: white;
+            padding: 1rem;
+            border-radius: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .logo-container img {
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
+        }
+
+        .title-section h1 {
+            font-size: 5.5rem;
+            font-weight: 900;
+            line-height: 1.1;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .title-section h2 {
+            font-size: 2.2rem;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 0.5rem;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            padding: 2rem 4rem;
+            display: flex;
+            gap: 3rem;
+        }
+
+        /* Left Column (Screenshots & Tech) */
+        .left-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .app-showcase {
+            position: relative;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .app-showcase img {
+            max-width: 100%;
+            max-height: 600px;
+            object-fit: contain;
+            border-radius: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            border: 8px solid white;
+        }
+
+        .tech-stack {
+            background: #f1f5f9;
+            padding: 2rem;
+            border-radius: 20px;
+            text-align: center;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tech-logos {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .tech-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tech-item img {
+            height: 60px;
+            object-fit: contain;
+        }
+        
+        .tech-item span {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        /* Right Column (Features & Team) */
+        .right-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 3rem;
+        }
+
+        .features-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+            border-left: 6px solid var(--primary);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: #fee2e2;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .feature-text h3 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-text p {
+            font-size: 1.2rem;
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+
+        .team-section {
+            background: linear-gradient(to bottom right, #1e293b, #0f172a);
+            border-radius: 20px;
+            padding: 2rem;
+            color: white;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+        }
+
+        .team-section .section-title {
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+
+        .team-member {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .team-member:last-child {
+            margin-bottom: 0;
+        }
+
+        .member-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .member-id {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            font-family: monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 0.3rem 0.8rem;
+            border-radius: 8px;
+        }
+
+        /* Supervisor section */
+        .supervisor {
+            background: rgba(252, 21, 59, 0.15);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--primary);
+            color: white;
+        }
+        
+        .supervisor-title {
+            font-size: 1rem;
+            color: #fca5a5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.3rem;
+            font-weight: 600;
+        }
+
+        .supervisor-name {
+            font-size: 1.6rem;
+            font-weight: 800;
+        }
+
+        /* Bottom SDGs Area */
+        .footer {
+            background: white;
+            padding: 2rem 4rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .sdg-container {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .sdg-container img {
+            height: 120px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="poster">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="logo-container">
+                    <!-- Point to local app logo if available, or placeholder -->
+                    <img src="Assets/icons/app_logo.png" alt="Musafirah Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3202/3202926.png'">
+                </div>
+                <div class="title-section">
+                    <h1>Musafirah</h1>
+                    <h2>Women Carpooling Mobile Application</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Column -->
+            <div class="left-col">
+                <div class="app-showcase">
+                    <!-- Mockup image of the new app screens -->
+                    <img src="artifacts/app_screenshots_1780658265298.png" alt="App Screenshots" onerror="this.src='https://i.ibb.co/L9hV1xR/mockup-placeholder.png'">
+                </div>
+
+                <div class="tech-stack">
+                    <h2 class="section-title">Tech Stack</h2>
+                    <div class="tech-logos">
+                        <div class="tech-item">
+                            <img src="https://storage.googleapis.com/cms-storage-bucket/0dbfcc7a59cd1cf16282.png" alt="Flutter">
+                            <span>Flutter</span>
+                        </div>
+                        <div class="tech-item">
+                            <img src="https://firebase.google.com/downloads/brand-guidelines/PNG/logo-logomark.png" alt="Firebase">
+                            <span>Firebase</span>
+                        </div>
+                        <div class="tech-item">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b0/Openstreetmap_logo.svg" alt="OSM">
+                            <span>OSM / OSRM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="right-col">
+                <div>
+                    <h2 class="section-title">Key Features</h2>
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">🛡️</div>
+                            <div class="feature-text">
+                                <h3>Women-Only Platform</h3>
+                                <p>A highly secure and verified ecosystem exclusively designed for female drivers and passengers.</p>
+                            </div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📍</div>
+                            <div class="feature-text">
+                                <h3>Live Ride Tracking</h3>
+                                <p>Real-time high precision GPS tracking to ensure safety and transparency throughout the journey.</p>
+                            </div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">🚨</div>
+                            <div class="feature-text">
+                                <h3>Emergency SOS Alerts</h3>
+                                <p>One-tap SOS integration instantly shares live location with predefined emergency contacts.</p>
+                            </div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">💰</div>
+                            <div class="feature-text">
+                                <h3>Automated Fare Calculation</h3>
+                                <p>Fair, transparent, and distance-based automated fare estimation using OSRM routing algorithms.</p>
+                            </div>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">💬</div>
+                            <div class="feature-text">
+                                <h3>In-App Live Chat</h3>
+                                <p>Secure and private real-time communication between the driver and passenger.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="team-section">
+                    <h2 class="section-title">Project Team</h2>
+                    
+                    <div class="supervisor">
+                        <div class="supervisor-title">Supervised By</div>
+                        <div class="supervisor-name">Dr. M. Sadiq Ali Khan</div>
+                    </div>
+
+                    <div class="team-member">
+                        <span class="member-name">Syed Muhammad Abdullah</span>
+                        <span class="member-id">FA21-BSE-022</span>
+                    </div>
+                    <div class="team-member">
+                        <span class="member-name">Shayan Akram</span>
+                        <span class="member-id">FA21-BSE-019</span>
+                    </div>
+                    <div class="team-member">
+                        <span class="member-name">Usman Ali</span>
+                        <span class="member-id">FA21-BSE-121</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer SDGs -->
+        <div class="footer">
+            <h2 class="section-title" style="margin-bottom: 0;">Targeted SDGs</h2>
+            <div class="sdg-container">
+                <!-- SDG 5: Gender Equality -->
+                <img src="https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-05.jpg" alt="SDG 5">
+                <!-- SDG 9: Industry, Innovation and Infrastructure -->
+                <img src="https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-09.jpg" alt="SDG 9">
+                <!-- SDG 11: Sustainable Cities and Communities -->
+                <img src="https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-11.jpg" alt="SDG 11">
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -590,11 +590,14 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
 
     final rideId = result;
 
-    // Save destination to recent destinations
+    // Save trip (pickup + destination) to recent list
     await RecentDestinationsService.save(
       address: _destinationText.replaceAll('To: ', ''),
       lat: _destination!.latitude,
       lng: _destination!.longitude,
+      pickupAddress: _originText.replaceAll('From: ', ''),
+      pickupLat: _origin!.latitude,
+      pickupLng: _origin!.longitude,
     );
 
     // Navigate to ride selection screen
@@ -1225,7 +1228,7 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Recently Used',
+                        'Recent Trips',
                         style: GoogleFonts.outfit(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -1235,74 +1238,116 @@ class _PassengerDashboardScreenState extends State<PassengerDashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    height: 76,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _recentDestinations.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, i) {
-                        final dest = _recentDestinations[i];
-                        final address = dest['address'] as String;
-                        return GestureDetector(
-                          onTap: () {
-                            final lat = (dest['lat'] as num).toDouble();
-                            final lng = (dest['lng'] as num).toDouble();
-                            setState(() {
-                              _destination = LatLng(lat, lng);
-                              _destinationText = 'To: $address';
-                              _destinationController.text = address;
-                            });
-                          },
-                          child: Container(
-                            width: 160,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.05),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2)),
+                  ..._recentDestinations.map((dest) {
+                    final dropoffAddr = dest['address'] as String? ?? '';
+                    final pickupAddr = dest['pickupAddress'] as String? ?? '';
+
+                    // Show only first part before first comma
+                    String short(String full) {
+                      final parts = full.split(',');
+                      return parts.isNotEmpty ? parts[0].trim() : full;
+                    }
+
+                    return GestureDetector(
+                      onTap: () {
+                        final lat = (dest['lat'] as num).toDouble();
+                        final lng = (dest['lng'] as num).toDouble();
+                        setState(() {
+                          _destination = LatLng(lat, lng);
+                          _destinationText = 'To: $dropoffAddr';
+                          _destinationController.text = dropoffAddr;
+                          // Also restore pickup if available
+                          if (pickupAddr.isNotEmpty && dest['pickupLat'] != null) {
+                            final pLat = (dest['pickupLat'] as num).toDouble();
+                            final pLng = (dest['pickupLng'] as num).toDouble();
+                            _origin = LatLng(pLat, pLng);
+                            _originText = 'From: $pickupAddr';
+                            _originController.text = pickupAddr;
+                          }
+                        });
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.grey.shade100),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // Left: icon column
+                            Column(
+                              children: [
+                                const Icon(Icons.circle, size: 10, color: Color(0xFFFC153B)),
+                                Container(
+                                  width: 1.5,
+                                  height: 26,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const Icon(Icons.square, size: 10, color: Colors.black87),
                               ],
                             ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 34,
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF8B5CF6)
-                                        .withValues(alpha: 0.1),
-                                    shape: BoxShape.circle,
+                            const SizedBox(width: 12),
+                            // Right: pickup + destination
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Pickup',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                  child: const Icon(
-                                      Icons.history_rounded,
-                                      color: Color(0xFF8B5CF6),
-                                      size: 17),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    address,
-                                    maxLines: 2,
+                                  Text(
+                                    pickupAddr.isNotEmpty ? short(pickupAddr) : 'Current Location',
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.outfit(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A)),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Destination',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    short(dropoffAddr),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 12),
                 ],
               ),

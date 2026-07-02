@@ -6,6 +6,7 @@ import 'widgets/bottom_nav.dart';
 import 'driver_details_screen.dart';
 import 'live_rides_screen.dart';
 import 'package:musafirah_app/services/auth_service.dart';
+import 'package:musafirah_app/screens/notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -78,7 +79,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         centerTitle: false,
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+            ),
             icon: const Icon(Icons.notifications_outlined, color: Colors.white),
           ),
           const SizedBox(width: 8),
