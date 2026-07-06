@@ -1,0 +1,37 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "musafirah-db-updated",
+          "appId": "1:950461159376:android:54515dfa7396b70c774bd5",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "musafirah-db-updated",
+          "appId": "1:950461159376:ios:684643f271de8977774bd5",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "musafirah-db-updated",
+          "configurations": {
+            "android": "1:950461159376:android:54515dfa7396b70c774bd5",
+            "ios": "1:950461159376:ios:684643f271de8977774bd5"
+          }
+        }
+      }
+    }
+  }
+}
