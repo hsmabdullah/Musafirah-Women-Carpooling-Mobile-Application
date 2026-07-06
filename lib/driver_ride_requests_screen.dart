@@ -160,7 +160,9 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
             rideId: ride.rideId!,
             driverUid: driver?.uid ?? '',
             driverName: profile?['name'] as String? ?? 'Driver',
-            driverPhone: profile?['phone'] as String? ?? '',
+            driverPhone: (profile?['phone'] as String?)?.isNotEmpty == true 
+                ? profile!['phone'] as String 
+                : (driver?.phoneNumber ?? '00000000000'),
             vehicleModel: profile?['vehicleModel'] as String? ?? '—',
             vehicleColor: profile?['vehicleColor'] as String? ?? '—',
             vehiclePlate: profile?['vehicleRegistration'] as String? ?? '—',

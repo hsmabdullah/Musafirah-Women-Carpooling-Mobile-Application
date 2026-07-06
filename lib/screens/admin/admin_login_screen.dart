@@ -42,7 +42,17 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _handleLogin() {
     if (_formKey.currentState!.validate()) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      if (_usernameController.text.trim() == 'Admin' &&
+          _passwordController.text.trim() == 'Admin') {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid username or password.'),
+            backgroundColor: Color(0xFFFC153B),
+          ),
+        );
+      }
     }
   }
 

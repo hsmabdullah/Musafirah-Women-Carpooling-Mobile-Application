@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher_string.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'live_chat_screen.dart';
 import 'passenger_live_tracking_screen.dart';
@@ -537,10 +537,26 @@ class _RideAcceptedScreenState extends State<RideAcceptedScreen>
             icon: Icons.phone_rounded,
             label: 'Call Driver',
             color: _kText,
-            onTap: widget.driverPhone.isEmpty
-                ? null
-                : () => launchUrlString(
-                    'tel:${widget.driverPhone.replaceAll(' ', '')}'),
+            onTap: () async {
+              final phone = widget.driverPhone.isNotEmpty
+                  ? widget.driverPhone
+                  : '00000000000'; // Fallback for testing if missing
+              final cleanPhone = phone.replaceAll(RegExp(r'\s+'), '');
+              final Uri launchUri = Uri(scheme: 'tel', path: cleanPhone);
+              try {
+                if (await canLaunchUrl(launchUri)) {
+                  await launchUrl(launchUri,
+                      mode: LaunchMode.externalApplication);
+                } else {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not launch dialer')),
+                  );
+                }
+              } catch (e) {
+                debugPrint('Error launching dialer: $e');
+              }
+            },
           ),
         ),
         const SizedBox(width: 12),

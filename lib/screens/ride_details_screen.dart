@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:musafirah_app/services/database_service.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 class RideDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> rideData;
 
@@ -187,14 +189,14 @@ class RideDetailsScreen extends StatelessWidget {
 
             // Driver Details (if assigned)
             if (rideData['driverId'] != null && rideData['driverId'].toString().isNotEmpty)
-              FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('Drivers').doc(rideData['driverId']).get(),
+              FutureBuilder<Map<String, dynamic>?>(
+                future: DatabaseService.getDriver(rideData['driverId']),
                 builder: (context, snapshot) {
                   // Helper: pick the first non-empty, non-dash value
                   String pick(List<String?> candidates, String fallback) {
                     for (final c in candidates) {
-                      if (c != null && c.isNotEmpty && c != '-' && c != '—' && c != 'N/A') {
-                        return c;
+                      if (c != null && c.trim().isNotEmpty && c.trim() != '-' && c.trim() != '—' && c.trim().toLowerCase() != 'n/a' && c.trim().toLowerCase() != 'null') {
+                        return c.trim();
                       }
                     }
                     return fallback;
@@ -219,8 +221,8 @@ class RideDetailsScreen extends StatelessWidget {
                   String dbPlate = '';
                   String dbImg = '';
 
-                  if (snapshot.hasData && snapshot.data!.exists) {
-                    final d = snapshot.data!.data() as Map<String, dynamic>;
+                  if (snapshot.hasData && snapshot.data != null) {
+                    final d = snapshot.data!;
                     dbName = d['name'] as String? ?? '';
                     dbPhone = d['phone'] as String? ?? '';
                     dbVehicle = d['vehicleModel'] as String? ?? '';
@@ -229,6 +231,16 @@ class RideDetailsScreen extends StatelessWidget {
                     dbImg = (d['profileImageUrl'] as String?)?.isNotEmpty == true
                         ? d['profileImageUrl'] as String
                         : (d['image_selfie'] as String? ?? '');
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(40),
+                      child: const Center(
+                        child: CircularProgressIndicator(color: Color(0xFFFC153B)),
+                      ),
+                    );
                   }
 
                   // Resolve final values: prefer Drivers collection, fallback to ride doc
@@ -262,14 +274,7 @@ class RideDetailsScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            CircleAvatar(
-                              radius: 28,
-                              backgroundColor: Colors.grey[200],
-                              backgroundImage: imgUrl.isNotEmpty ? NetworkImage(imgUrl) : null,
-                              child: imgUrl.isEmpty
-                                  ? const Icon(Icons.person, color: Colors.grey, size: 30)
-                                  : null,
-                            ),
+                            _buildDriverAvatar(imgUrl, name),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
@@ -291,7 +296,7 @@ class RideDetailsScreen extends StatelessWidget {
                                           Icon(Icons.phone_outlined, size: 14, color: Colors.grey[500]),
                                           const SizedBox(width: 4),
                                           Text(
-                                            phone,
+                                            phone.isNotEmpty ? phone : 'Phone not provided',
                                             style: GoogleFonts.outfit(
                                               fontSize: 14,
                                               color: Colors.grey[600],
@@ -305,71 +310,67 @@ class RideDetailsScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        if (vehicleDisplay.isNotEmpty || plate.isNotEmpty) ...[
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Divider(height: 1),
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              if (vehicleDisplay.isNotEmpty)
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Vehicle',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 12,
-                                          color: Colors.grey[500],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        vehicleDisplay,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w500,
-                                          color: const Color(0xFF0F172A),
-                                        ),
-                                      ),
-                                    ],
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Divider(height: 1),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Vehicle',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    vehicleDisplay.isNotEmpty ? vehicleDisplay : 'Not provided',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'License Plate',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
                                   ),
                                 ),
-                              if (plate.isNotEmpty)
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      'License Plate',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 12,
-                                        color: Colors.grey[500],
-                                      ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: plate.isNotEmpty ? Colors.yellow[700] : Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.black12),
+                                  ),
+                                  child: Text(
+                                    plate.isNotEmpty ? plate : 'N/A',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black87,
                                     ),
-                                    const SizedBox(height: 4),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.yellow[700],
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: Colors.black12),
-                                      ),
-                                      child: Text(
-                                        plate,
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   );
@@ -380,6 +381,54 @@ class RideDetailsScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDriverAvatar(String imageUrl, String name) {
+    Widget inner;
+    if (imageUrl.startsWith('data:image')) {
+      try {
+        final Uint8List bytes = base64Decode(imageUrl.split(',').last);
+        inner = Image.memory(bytes, fit: BoxFit.cover, width: 56, height: 56);
+      } catch (_) {
+        inner = _defaultAvatarIcon(name);
+      }
+    } else if (imageUrl.startsWith('http')) {
+      inner = Image.network(imageUrl,
+          fit: BoxFit.cover,
+          width: 56,
+          height: 56,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFC153B)),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => _defaultAvatarIcon(name));
+    } else {
+      inner = _defaultAvatarIcon(name);
+    }
+
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        shape: BoxShape.circle,
+      ),
+      child: ClipOval(child: inner),
+    );
+  }
+
+  Widget _defaultAvatarIcon(String name) {
+    return Center(
+      child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: GoogleFonts.outfit(
+              fontSize: 22, fontWeight: FontWeight.w800, color: Colors.grey[600])),
     );
   }
 }
